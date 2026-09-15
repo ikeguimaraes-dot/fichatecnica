@@ -1,4 +1,4 @@
-# Mise · Livro de receitas
+# Le Chef · Livro de receitas
 
 Sistema de fichas técnicas de pratos, em português, com React, TypeScript, Vite e Supabase.
 
@@ -66,5 +66,7 @@ npm test
 Os testes verificam busca, filtros, favoritos, criação/edição/exclusão, foto, cálculo com unidades diferentes, persistência e largura mobile. A configuração usa `http://localhost:5174`.
 
 ## Design
+
+Identidade Le Chef: fundo branco, laranja ácido `#ff6500` e texto escuro.
 
 Tipografia Playfair Display, DM Sans e Manrope (Google Fonts). Fotografias ilustrativas do Unsplash. Recursos externos requerem conexão; as fichas próprias usam o Supabase Storage.

@@ -233,7 +233,7 @@ function App() {
             setSearch("");
           }}
         >
-          mise<span>✳</span>
+          Le Chef<span>✳</span>
         </a>
         <div className="brand-caption">CADA DETALHE NO LUGAR.</div>
         <div className="workspace">
@@ -296,7 +296,7 @@ function App() {
             className="account"
             onClick={() => (session ? supabase.auth.signOut() : setAuth(true))}
           >
-            <span className="avatar">{session ? "MC" : "M"}</span>
+            <span className="avatar">{session ? "MC" : "LC"}</span>
             <span>
               <strong>
                 {session ? "Minha conta" : "Entre na sua cozinha"}
@@ -330,7 +330,7 @@ function App() {
               aria-label="Abrir conta"
               onClick={() => setAuth(true)}
             >
-              M
+              LC
             </button>
           </div>
         </header>
@@ -382,7 +382,7 @@ function App() {
                   Dê vida à sua próxima criação <ArrowRight size={18} />
                 </button>
                 <div className="hero-bottom">
-                  <span>MISE EN PLACE, SEMPRE.</span>
+                  <span>O SABOR ESTÁ NOS DETALHES.</span>
                   <Leaf size={20} />
                 </div>
               </div>
@@ -639,7 +639,7 @@ function App() {
           </section>
           <footer className="page-footer">
             <span className="footer-brand">
-              mise<span>✳</span>
+              Le Chef<span>✳</span>
             </span>
             <span>Receitas com alma. Gestão com precisão.</span>
             <span>FEITO PARA A SUA COZINHA</span>
@@ -667,7 +667,7 @@ function App() {
             <span className="pill">{detail.category}</span>
           </div>
           <div className="detail-content">
-            <div className="eyebrow">RECEITA · MISE</div>
+            <div className="eyebrow">RECEITA · LE CHEF</div>
             <h2>{detail.title}</h2>
             <p>{detail.description}</p>
             <div className="detail-actions">
@@ -842,7 +842,7 @@ function Modal({
         className={`modal ${wide ? "wide" : ""}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Receitas Mise"
+        aria-label="Receitas Le Chef"
         tabIndex={-1}
         ref={ref}
       >
@@ -923,7 +923,7 @@ function Auth({
     <Modal onClose={onClose}>
       <div className="auth-content">
         <div className="brand">
-          mise<span>✳</span>
+          Le Chef<span>✳</span>
         </div>
         <div className="eyebrow">SUA COZINHA, SEMPRE COM VOCÊ</div>
         <h2>
