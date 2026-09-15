@@ -5,6 +5,8 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Library,
+  Pencil,
   Check,
   ChefHat,
   Clock3,
@@ -38,12 +40,35 @@ import {
 } from "./model";
 import { supabase } from "./supabase";
 import "./style.css";
+import { Modal } from "./Modal";
+import { BookShelf, BookEditor } from "./Books";
+import { demoBooks, emptyBook, type RecipeBook } from "./books-model";
 const localKey = "mise-demo-v1";
 function readDemo(): Recipe[] {
   try {
-    return JSON.parse(localStorage.getItem(localKey) || "null") || examples;
+    const saved: Recipe[] =
+      JSON.parse(localStorage.getItem(localKey) || "null") || examples;
+    const availableBooks = readBooks();
+    return saved.map((r) => {
+      if (r.book_id !== undefined) return r;
+      const suggested = examples.find((x) => x.id === r.id)?.book_id;
+      return {
+        ...r,
+        book_id: availableBooks.some((b) => b.id === suggested)
+          ? suggested
+          : null,
+      };
+    });
   } catch {
     return examples;
+  }
+}
+const booksKey = "le-chef-books-v1";
+function readBooks(): RecipeBook[] {
+  try {
+    return JSON.parse(localStorage.getItem(booksKey) || "null") || demoBooks;
+  } catch {
+    return demoBooks;
   }
 }
 function App() {
@@ -53,7 +78,7 @@ function App() {
     [error, setError] = useState("");
   const [category, setCategory] = useState(categories[0]),
     [search, setSearch] = useState(""),
-    [nav, setNav] = useState("book"),
+    [nav, setNav] = useState("books"),
     [list, setList] = useState(false),
     [sort, setSort] = useState("recent");
   const [editor, setEditor] = useState<Recipe | null>(null),
@@ -62,6 +87,22 @@ function App() {
     [recovery, setRecovery] = useState(false),
     [toast, setToast] = useState(""),
     [saving, setSaving] = useState(false);
+  const [books, setBooks] = useState<RecipeBook[]>(readBooks);
+  const [activeBook, setActiveBook] = useState<string | null>(null);
+  const [bookEditor, setBookEditor] = useState<RecipeBook | null>(null);
+  const [bookSaving, setBookSaving] = useState(false);
+  const [organizing, setOrganizing] = useState(false);
+  const [selectedRecipes, setSelectedRecipes] = useState<string[]>([]);
+  const [moving, setMoving] = useState(false);
+  const currentBook = books.find((b) => b.id === activeBook);
+  const navigate = (view: string, bookId: string | null = null) => {
+    setNav(view);
+    setActiveBook(bookId);
+    setSearch("");
+    setCategory(categories[0]);
+  };
+  const createRecipe = () =>
+    setEditor({ ...emptyRecipe(), book_id: currentBook?.id || null });
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const notify = (text: string) => setToast(text);
   const activeUser = useRef<string | undefined>(undefined);
@@ -77,6 +118,9 @@ function App() {
       if (activeUser.current !== s?.user.id) {
         setEditor(null);
         setDetail(null);
+        setBookEditor(null);
+        setActiveBook(null);
+        setOrganizing(false);
         activeUser.current = s?.user.id;
       }
       setLoading(false);
@@ -88,23 +132,34 @@ function App() {
     setError("");
     if (!session) {
       setRecipes(readDemo());
+      setBooks(readBooks());
+      setLoading(false);
       return;
     }
     setLoading(true);
-    supabase
-      .from("receita")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (!active) return;
-        if (error) {
-          setError(
-            "Não foi possível carregar suas fichas. Verifique a conexão e tente novamente.",
-          );
-          setRecipes([]);
-        } else setRecipes(data as Recipe[]);
-        setLoading(false);
-      });
+    Promise.all([
+      supabase
+        .from("receita")
+        .select("*")
+        .order("updated_at", { ascending: false }),
+      supabase
+        .from("receita_livro")
+        .select("*")
+        .order("created_at", { ascending: true }),
+    ]).then(([recipeResult, bookResult]) => {
+      if (!active) return;
+      if (recipeResult.error || bookResult.error) {
+        setError(
+          "Não foi possível carregar a biblioteca. Verifique sua conexão e tente novamente.",
+        );
+        setRecipes([]);
+        setBooks([]);
+      } else {
+        setRecipes(recipeResult.data as Recipe[]);
+        setBooks(bookResult.data as RecipeBook[]);
+      }
+      setLoading(false);
+    });
     return () => {
       active = false;
     };
@@ -119,9 +174,10 @@ function App() {
     let active = true;
     const paths = [
       ...new Set(
-        recipes
-          .flatMap((r) => [r.cover, ...r.steps.map((s) => s.photo)])
-          .filter((p) => p && !/^(https?:|data:)/.test(p)),
+        [
+          ...recipes.flatMap((r) => [r.cover, ...r.steps.map((s) => s.photo)]),
+          ...books.map((b) => b.cover),
+        ].filter((p) => p && !/^(https?:|data:)/.test(p)),
       ),
     ];
     if (paths.length)
@@ -141,7 +197,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, [recipes]);
+  }, [recipes, books]);
   const photo = (p: string) =>
     /^(https?:|data:|blob:)/.test(p) ? p : photoUrls[p] || "";
   async function persist(recipe: Recipe) {
@@ -204,9 +260,99 @@ function App() {
       notify("Não foi possível excluir. Tente novamente.");
     }
   }
+  async function saveBook(book: RecipeBook) {
+    setBookSaving(true);
+    try {
+      const next = { ...book, updated_at: new Date().toISOString() };
+      if (session) {
+        const { error } = await supabase
+          .from("receita_livro")
+          .upsert({ ...next, user_id: session.user.id });
+        if (error) throw error;
+      } else
+        localStorage.setItem(
+          booksKey,
+          JSON.stringify([...books.filter((b) => b.id !== next.id), next]),
+        );
+      setBooks((prev) =>
+        prev.some((b) => b.id === next.id)
+          ? prev.map((b) => (b.id === next.id ? next : b))
+          : [...prev, next],
+      );
+      setBookEditor(null);
+      navigate("book", next.id);
+      notify("Livro salvo. Seu próximo capítulo começa aqui.");
+    } catch {
+      notify("Não foi possível salvar o livro. Tente novamente.");
+    } finally {
+      setBookSaving(false);
+    }
+  }
+  async function deleteBook(book: RecipeBook) {
+    if (
+      !confirm(
+        `Excluir o livro “${book.title}”? As receitas serão preservadas em “Sem livro”.`,
+      )
+    )
+      return;
+    try {
+      if (session) {
+        const { error } = await supabase
+          .from("receita_livro")
+          .delete()
+          .eq("id", book.id);
+        if (error) throw error;
+      }
+      const remaining = books.filter((b) => b.id !== book.id),
+        updated = recipes.map((r) =>
+          r.book_id === book.id ? { ...r, book_id: null } : r,
+        );
+      if (!session) {
+        localStorage.setItem(booksKey, JSON.stringify(remaining));
+        localStorage.setItem(localKey, JSON.stringify(updated));
+      }
+      setBooks(remaining);
+      setRecipes(updated);
+      navigate("books");
+      notify("Livro excluído. Suas receitas foram preservadas.");
+    } catch {
+      notify("Não foi possível excluir o livro. Tente novamente.");
+    }
+  }
+  async function moveRecipes() {
+    if (!currentBook || !selectedRecipes.length) return;
+    setMoving(true);
+    try {
+      if (session) {
+        const { error } = await supabase
+          .from("receita")
+          .update({
+            book_id: currentBook.id,
+            updated_at: new Date().toISOString(),
+          })
+          .in("id", selectedRecipes);
+        if (error) throw error;
+      }
+      const updated = recipes.map((r) =>
+        selectedRecipes.includes(r.id) ? { ...r, book_id: currentBook.id } : r,
+      );
+      if (!session) localStorage.setItem(localKey, JSON.stringify(updated));
+      setRecipes(updated);
+      setOrganizing(false);
+      setSelectedRecipes([]);
+      notify("Receitas adicionadas ao livro.");
+    } catch {
+      notify("Não foi possível mover as receitas. Tente novamente.");
+    } finally {
+      setMoving(false);
+    }
+  }
   const filtered = recipes
     .filter(
       (r) =>
+        (nav !== "book" ||
+          !activeBook ||
+          (activeBook === "unfiled" ? !r.book_id : r.book_id === activeBook)) &&
         (category === categories[0] || r.category === category) &&
         (nav !== "favorites" || r.favorite) &&
         `${r.title} ${r.ingredients.map((i) => i.name).join(" ")}`
@@ -228,9 +374,7 @@ function App() {
           href="#"
           onClick={(e) => {
             e.preventDefault();
-            setNav("book");
-            setCategory(categories[0]);
-            setSearch("");
+            navigate("books");
           }}
         >
           Le Chef<span>✳</span>
@@ -249,16 +393,27 @@ function App() {
         <div className="nav-label">BIBLIOTECA</div>
         <nav>
           <button
-            className={nav === "book" ? "active" : ""}
-            onClick={() => setNav("book")}
+            className={
+              nav === "books" || (nav === "book" && !!activeBook)
+                ? "active"
+                : ""
+            }
+            onClick={() => navigate("books")}
+          >
+            <Library size={19} />
+            Meus livros <span>{books.length.toString().padStart(2, "0")}</span>
+          </button>
+          <button
+            className={nav === "book" && !activeBook ? "active" : ""}
+            onClick={() => navigate("book")}
           >
             <BookOpen size={19} />
-            Livro de receitas{" "}
+            Todas as receitas{" "}
             <span>{recipes.length.toString().padStart(2, "0")}</span>
           </button>
           <button
             className={nav === "favorites" ? "active" : ""}
-            onClick={() => setNav("favorites")}
+            onClick={() => navigate("favorites")}
           >
             <Heart size={19} />
             Favoritas{" "}
@@ -271,7 +426,7 @@ function App() {
           </button>
           <button
             className={nav === "costs" ? "active" : ""}
-            onClick={() => setNav("costs")}
+            onClick={() => navigate("costs")}
           >
             <SlidersHorizontal size={19} />
             Visão de custos
@@ -318,7 +473,12 @@ function App() {
               ? "Favoritas"
               : nav === "costs"
                 ? "Visão de custos"
-                : "Livro de receitas"}
+                : nav === "books"
+                  ? "Meus livros"
+                  : currentBook?.title ||
+                    (activeBook === "unfiled"
+                      ? "Sem livro"
+                      : "Todas as receitas")}
           </div>
           <div className="topbar-right">
             <span>
@@ -335,13 +495,43 @@ function App() {
           </div>
         </header>
         <div className="main-content">
+          {nav === "book" && activeBook && (
+            <div className="book-back-row">
+              <button onClick={() => navigate("books")}>
+                <ArrowLeft size={15} />
+                Voltar aos livros
+              </button>
+              {currentBook && (
+                <div>
+                  <button onClick={() => setBookEditor(currentBook)}>
+                    <Pencil size={14} />
+                    Editar livro
+                  </button>
+                  <button
+                    aria-label="Excluir livro"
+                    onClick={() => deleteBook(currentBook)}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <section className="page-heading">
             <div>
               <div className="eyebrow">
                 <span /> SEU REPERTÓRIO GASTRONÔMICO
               </div>
               <h1>
-                {nav === "favorites" ? (
+                {nav === "books" ? (
+                  <>
+                    Sua cozinha, <em>em volumes.</em>
+                  </>
+                ) : currentBook ? (
+                  currentBook.title
+                ) : activeBook === "unfiled" ? (
+                  "Receitas sem livro."
+                ) : nav === "favorites" ? (
                   "Receitas do coração."
                 ) : nav === "costs" ? (
                   "Precisão em cada prato."
@@ -352,185 +542,32 @@ function App() {
                 )}
               </h1>
               <p>
-                Guarde o que torna cada prato único. Crie, organize e inspire.
+                {nav === "books"
+                  ? "Uma estante de ideias. Infinitas possibilidades à mesa."
+                  : currentBook
+                    ? currentBook.description ||
+                      "Cada receita é um novo capítulo."
+                    : activeBook === "unfiled"
+                      ? "Abra uma receita para escolher o livro onde ela vai morar."
+                      : "Guarde o que torna cada prato único. Crie, organize e inspire."}
               </p>
             </div>
             <button
               className="primary"
-              onClick={() => setEditor(emptyRecipe())}
+              onClick={
+                nav === "books"
+                  ? () => setBookEditor(emptyBook())
+                  : createRecipe
+              }
             >
               <Plus size={18} />
-              Nova receita
+              {nav === "books" ? "Novo livro" : "Nova receita"}
             </button>
           </section>
-          {nav === "book" && (
-            <section className="hero">
-              <div className="hero-content">
-                <span className="hero-label">
-                  <span /> A ARTE DE FAZER BEM
-                </span>
-                <h2>
-                  O ingrediente secreto
-                  <br />é o <em>cuidado.</em>
-                </h2>
-                <p>
-                  Da primeira medida ao último toque.
-                  <br />
-                  Cada receita, uma história bem contada.
-                </p>
-                <button onClick={() => setEditor(emptyRecipe())}>
-                  Dê vida à sua próxima criação <ArrowRight size={18} />
-                </button>
-                <div className="hero-bottom">
-                  <span>O SABOR ESTÁ NOS DETALHES.</span>
-                  <Leaf size={20} />
-                </div>
-              </div>
-              <div className="hero-image">
-                <img
-                  src="https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=1400&q=90"
-                  alt="Salmão dourado com vegetais frescos em prato de cerâmica"
-                />
-                <div className="image-shade" />
-                <div className="hero-stamp">
-                  FEITO COM
-                  <br />
-                  <Heart size={21} />
-                  <br />
-                  INTENÇÃO
-                </div>
-                <div className="hero-image-caption">
-                  <span>INSPIRAÇÃO DO DIA</span>
-                  <strong>O extraordinário está nos detalhes.</strong>
-                </div>
-              </div>
-            </section>
-          )}
-          <section className="stats">
-            <div>
-              <div className="stat-icon">
-                <BookOpen size={21} />
-              </div>
-              <div>
-                <span>Receitas na biblioteca</span>
-                <strong>
-                  {recipes.length.toString().padStart(2, "0")}
-                  <small>criações da sua cozinha</small>
-                </strong>
-              </div>
-            </div>
-            <div>
-              <div className="stat-icon">
-                <Utensils size={21} />
-              </div>
-              <div>
-                <span>Categorias exploradas</span>
-                <strong>
-                  {new Set(recipes.map((r) => r.category)).size
-                    .toString()
-                    .padStart(2, "0")}
-                  <small>possibilidades à mesa</small>
-                </strong>
-              </div>
-            </div>
-            <div>
-              <div className="stat-icon">
-                <Heart size={21} />
-              </div>
-              <div>
-                <span>Receitas favoritas</span>
-                <strong>
-                  {recipes
-                    .filter((r) => r.favorite)
-                    .length.toString()
-                    .padStart(2, "0")}
-                  <small>para fazer de novo</small>
-                </strong>
-              </div>
-            </div>
-          </section>
-          <section className="library">
-            <div className="library-heading">
-              <h2>
-                {nav === "favorites"
-                  ? "Suas favoritas"
-                  : nav === "costs"
-                    ? "Custos por receita"
-                    : "O seu livro de receitas"}
-                <span>{filtered.length}</span>
-              </h2>
-              <div className="view-switch">
-                <button
-                  className={!list ? "selected" : ""}
-                  aria-label="Visualização em grade"
-                  onClick={() => setList(false)}
-                >
-                  <Grid2X2 size={17} />
-                </button>
-                <button
-                  className={list ? "selected" : ""}
-                  aria-label="Visualização em lista"
-                  onClick={() => setList(true)}
-                >
-                  <List size={18} />
-                </button>
-              </div>
-            </div>
-            <div className="library-controls">
-              <div className="search">
-                <Search size={18} />
-                <input
-                  aria-label="Buscar receitas"
-                  placeholder="Busque uma receita ou ingrediente..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {search && (
-                  <button
-                    aria-label="Limpar busca"
-                    onClick={() => setSearch("")}
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
-              <label className="sort">
-                <ArrowDownWideNarrow size={17} />
-                <select
-                  aria-label="Ordenar receitas"
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
-                >
-                  <option value="recent">Mais recentes</option>
-                  <option value="name">Nome: A a Z</option>
-                  <option value="cost">Menor custo por porção</option>
-                </select>
-              </label>
-            </div>
-            <div className="categories">
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  className={category === c ? "selected" : ""}
-                  onClick={() => setCategory(c)}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-            {!session && (
-              <div className="demo-note">
-                <Sparkles size={14} /> Uma amostra para inspirar.{" "}
-                <button onClick={() => setAuth(true)}>
-                  Entre para criar sua biblioteca pessoal{" "}
-                  <ArrowRight size={13} />
-                </button>
-              </div>
-            )}
-            {error ? (
+          {nav === "books" ? (
+            error ? (
               <div className="empty">
                 <Cloud />
-                <h3>Vamos reconectar?</h3>
                 <p>{error}</p>
                 <button className="primary" onClick={() => location.reload()}>
                   Tentar novamente
@@ -539,104 +576,326 @@ function App() {
             ) : loading ? (
               <div className="empty">
                 <LoaderCircle className="spin" />
-                <p>Abrindo seu livro...</p>
-              </div>
-            ) : !filtered.length ? (
-              <div className="empty">
-                <BookOpen size={36} />
-                <h3>
-                  {search
-                    ? "Ainda não encontramos essa receita."
-                    : "Toda cozinha começa com uma receita."}
-                </h3>
-                <p>
-                  {search
-                    ? "Experimente outro nome ou ingrediente."
-                    : "Adicione sua primeira criação e deixe cada detalhe registrado."}
-                </p>
-                <button
-                  className="primary"
-                  onClick={() =>
-                    search ? setSearch("") : setEditor(emptyRecipe())
-                  }
-                >
-                  {search ? "Limpar busca" : "Criar minha primeira receita"}
-                </button>
+                <p>Abrindo sua biblioteca...</p>
               </div>
             ) : (
-              <div
-                className={`recipe-grid ${list || nav === "costs" ? "list-view" : ""}`}
-              >
-                {filtered.map((r, index) => (
-                  <article
-                    className="recipe-card"
-                    key={r.id}
-                    style={{ "--i": index } as React.CSSProperties}
-                  >
-                    <button
-                      className="card-photo"
-                      onClick={() => setDetail(r)}
-                      aria-label={`Ver ${r.title}`}
-                    >
-                      {photo(r.cover) ? (
-                        <img
-                          src={photo(r.cover)}
-                          alt={r.title}
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="photo-placeholder">
-                          <ChefHat size={40} />
-                        </div>
-                      )}
-                      <span className="card-category">{r.category}</span>
+              <BookShelf
+                books={books}
+                recipes={recipes}
+                photo={photo}
+                onOpen={(id) => navigate("book", id)}
+                onNew={() => setBookEditor(emptyBook())}
+                onAll={() => navigate("book")}
+                onUnfiled={() => navigate("book", "unfiled")}
+                demo={!session}
+              />
+            )
+          ) : (
+            <>
+              {nav === "book" && !activeBook && (
+                <section className="hero">
+                  <div className="hero-content">
+                    <span className="hero-label">
+                      <span /> A ARTE DE FAZER BEM
+                    </span>
+                    <h2>
+                      O ingrediente secreto
+                      <br />é o <em>cuidado.</em>
+                    </h2>
+                    <p>
+                      Da primeira medida ao último toque.
+                      <br />
+                      Cada receita, uma história bem contada.
+                    </p>
+                    <button onClick={createRecipe}>
+                      Dê vida à sua próxima criação <ArrowRight size={18} />
                     </button>
-                    <button
-                      className={`favorite ${r.favorite ? "is-favorite" : ""}`}
-                      aria-label={`${r.favorite ? "Desfavoritar" : "Favoritar"} ${r.title}`}
-                      onClick={() => favorite(r)}
-                    >
-                      <Heart
-                        size={17}
-                        fill={r.favorite ? "currentColor" : "none"}
-                      />
-                    </button>
-                    <div className="card-body">
-                      <button
-                        className="card-title"
-                        onClick={() => setDetail(r)}
-                      >
-                        {r.title}
-                      </button>
-                      <div className="card-meta">
-                        <span>
-                          <Clock3 size={13} />
-                          {r.minutes} min
-                        </span>
-                        <span className="meta-dot">·</span>
-                        <span>
-                          <Users size={13} />
-                          {r.servings} porções
-                        </span>
-                      </div>
-                      <div className="card-footer">
-                        <div>
-                          <span>CUSTO POR PORÇÃO</span>
-                          <strong>{money(totalCost(r) / r.servings)}</strong>
-                        </div>
-                        <button
-                          aria-label={`Abrir ficha de ${r.title}`}
-                          onClick={() => setDetail(r)}
-                        >
-                          <ArrowRight size={18} />
-                        </button>
-                      </div>
+                    <div className="hero-bottom">
+                      <span>O SABOR ESTÁ NOS DETALHES.</span>
+                      <Leaf size={20} />
                     </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
+                  </div>
+                  <div className="hero-image">
+                    <img
+                      src="https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=1400&q=90"
+                      alt="Salmão dourado com vegetais frescos em prato de cerâmica"
+                    />
+                    <div className="image-shade" />
+                    <div className="hero-stamp">
+                      FEITO COM
+                      <br />
+                      <Heart size={21} />
+                      <br />
+                      INTENÇÃO
+                    </div>
+                    <div className="hero-image-caption">
+                      <span>INSPIRAÇÃO DO DIA</span>
+                      <strong>O extraordinário está nos detalhes.</strong>
+                    </div>
+                  </div>
+                </section>
+              )}
+              {currentBook && (
+                <div className="book-context-actions">
+                  <span>
+                    <BookOpen size={16} />
+                    {
+                      recipes.filter((r) => r.book_id === currentBook.id).length
+                    }{" "}
+                    receitas neste livro
+                  </span>
+                  <button
+                    className="secondary"
+                    onClick={() => {
+                      setSelectedRecipes([]);
+                      setOrganizing(true);
+                    }}
+                  >
+                    <Plus size={15} />
+                    Adicionar receitas existentes
+                  </button>
+                </div>
+              )}
+              <section className="stats">
+                <div>
+                  <div className="stat-icon">
+                    <BookOpen size={21} />
+                  </div>
+                  <div>
+                    <span>Receitas na biblioteca</span>
+                    <strong>
+                      {recipes.length.toString().padStart(2, "0")}
+                      <small>criações da sua cozinha</small>
+                    </strong>
+                  </div>
+                </div>
+                <div>
+                  <div className="stat-icon">
+                    <Utensils size={21} />
+                  </div>
+                  <div>
+                    <span>Categorias exploradas</span>
+                    <strong>
+                      {new Set(recipes.map((r) => r.category)).size
+                        .toString()
+                        .padStart(2, "0")}
+                      <small>possibilidades à mesa</small>
+                    </strong>
+                  </div>
+                </div>
+                <div>
+                  <div className="stat-icon">
+                    <Heart size={21} />
+                  </div>
+                  <div>
+                    <span>Receitas favoritas</span>
+                    <strong>
+                      {recipes
+                        .filter((r) => r.favorite)
+                        .length.toString()
+                        .padStart(2, "0")}
+                      <small>para fazer de novo</small>
+                    </strong>
+                  </div>
+                </div>
+              </section>
+              <section className="library">
+                <div className="library-heading">
+                  <h2>
+                    {nav === "favorites"
+                      ? "Suas favoritas"
+                      : nav === "costs"
+                        ? "Custos por receita"
+                        : currentBook
+                          ? "Receitas deste livro"
+                          : activeBook === "unfiled"
+                            ? "Receitas sem livro"
+                            : "Todas as receitas"}
+                    <span>{filtered.length}</span>
+                  </h2>
+                  <div className="view-switch">
+                    <button
+                      className={!list ? "selected" : ""}
+                      aria-label="Visualização em grade"
+                      onClick={() => setList(false)}
+                    >
+                      <Grid2X2 size={17} />
+                    </button>
+                    <button
+                      className={list ? "selected" : ""}
+                      aria-label="Visualização em lista"
+                      onClick={() => setList(true)}
+                    >
+                      <List size={18} />
+                    </button>
+                  </div>
+                </div>
+                <div className="library-controls">
+                  <div className="search">
+                    <Search size={18} />
+                    <input
+                      aria-label="Buscar receitas"
+                      placeholder="Busque uma receita ou ingrediente..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search && (
+                      <button
+                        aria-label="Limpar busca"
+                        onClick={() => setSearch("")}
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                  </div>
+                  <label className="sort">
+                    <ArrowDownWideNarrow size={17} />
+                    <select
+                      aria-label="Ordenar receitas"
+                      value={sort}
+                      onChange={(e) => setSort(e.target.value)}
+                    >
+                      <option value="recent">Mais recentes</option>
+                      <option value="name">Nome: A a Z</option>
+                      <option value="cost">Menor custo por porção</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="categories">
+                  {categories.map((c) => (
+                    <button
+                      key={c}
+                      className={category === c ? "selected" : ""}
+                      onClick={() => setCategory(c)}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                {!session && (
+                  <div className="demo-note">
+                    <Sparkles size={14} /> Uma amostra para inspirar.{" "}
+                    <button onClick={() => setAuth(true)}>
+                      Entre para criar sua biblioteca pessoal{" "}
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                )}
+                {error ? (
+                  <div className="empty">
+                    <Cloud />
+                    <h3>Vamos reconectar?</h3>
+                    <p>{error}</p>
+                    <button
+                      className="primary"
+                      onClick={() => location.reload()}
+                    >
+                      Tentar novamente
+                    </button>
+                  </div>
+                ) : loading ? (
+                  <div className="empty">
+                    <LoaderCircle className="spin" />
+                    <p>Abrindo seu livro...</p>
+                  </div>
+                ) : !filtered.length ? (
+                  <div className="empty">
+                    <BookOpen size={36} />
+                    <h3>
+                      {search
+                        ? "Ainda não encontramos essa receita."
+                        : "Toda cozinha começa com uma receita."}
+                    </h3>
+                    <p>
+                      {search
+                        ? "Experimente outro nome ou ingrediente."
+                        : "Adicione sua primeira criação e deixe cada detalhe registrado."}
+                    </p>
+                    <button
+                      className="primary"
+                      onClick={() => (search ? setSearch("") : createRecipe())}
+                    >
+                      {search ? "Limpar busca" : "Criar minha primeira receita"}
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className={`recipe-grid ${list || nav === "costs" ? "list-view" : ""}`}
+                  >
+                    {filtered.map((r, index) => (
+                      <article
+                        className="recipe-card"
+                        key={r.id}
+                        style={{ "--i": index } as React.CSSProperties}
+                      >
+                        <button
+                          className="card-photo"
+                          onClick={() => setDetail(r)}
+                          aria-label={`Ver ${r.title}`}
+                        >
+                          {photo(r.cover) ? (
+                            <img
+                              src={photo(r.cover)}
+                              alt={r.title}
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="photo-placeholder">
+                              <ChefHat size={40} />
+                            </div>
+                          )}
+                          <span className="card-category">{r.category}</span>
+                        </button>
+                        <button
+                          className={`favorite ${r.favorite ? "is-favorite" : ""}`}
+                          aria-label={`${r.favorite ? "Desfavoritar" : "Favoritar"} ${r.title}`}
+                          onClick={() => favorite(r)}
+                        >
+                          <Heart
+                            size={17}
+                            fill={r.favorite ? "currentColor" : "none"}
+                          />
+                        </button>
+                        <div className="card-body">
+                          <button
+                            className="card-title"
+                            onClick={() => setDetail(r)}
+                          >
+                            {r.title}
+                          </button>
+                          <div className="card-meta">
+                            <span>
+                              <Clock3 size={13} />
+                              {r.minutes} min
+                            </span>
+                            <span className="meta-dot">·</span>
+                            <span>
+                              <Users size={13} />
+                              {r.servings} porções
+                            </span>
+                          </div>
+                          <div className="card-footer">
+                            <div>
+                              <span>CUSTO POR PORÇÃO</span>
+                              <strong>
+                                {money(totalCost(r) / r.servings)}
+                              </strong>
+                            </div>
+                            <button
+                              aria-label={`Abrir ficha de ${r.title}`}
+                              onClick={() => setDetail(r)}
+                            >
+                              <ArrowRight size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
           <footer className="page-footer">
             <span className="footer-brand">
               Le Chef<span>✳</span>
@@ -646,10 +905,82 @@ function App() {
           </footer>
         </div>
       </main>
+      {bookEditor && (
+        <BookEditor
+          initial={bookEditor}
+          session={session}
+          photo={photo}
+          onSave={saveBook}
+          onClose={() => setBookEditor(null)}
+          saving={bookSaving}
+        />
+      )}
+      {organizing && currentBook && (
+        <Modal
+          onClose={() => {
+            if (!moving) setOrganizing(false);
+          }}
+        >
+          <div className="organize-recipes">
+            <div className="eyebrow">COMPONHA SEU LIVRO</div>
+            <h2>Adicionar receitas</h2>
+            <p>
+              Selecione as receitas para mover para{" "}
+              <strong>{currentBook.title}</strong>. Elas sairão do livro
+              anterior.
+            </p>
+            <div className="organize-list">
+              {recipes
+                .filter((r) => r.book_id !== currentBook.id)
+                .map((r) => (
+                  <label key={r.id}>
+                    <input
+                      type="checkbox"
+                      checked={selectedRecipes.includes(r.id)}
+                      onChange={(e) =>
+                        setSelectedRecipes((prev) =>
+                          e.target.checked
+                            ? [...prev, r.id]
+                            : prev.filter((id) => id !== r.id),
+                        )
+                      }
+                    />
+                    <span>
+                      <strong>{r.title}</strong>
+                      <small>
+                        {books.find((b) => b.id === r.book_id)?.title ||
+                          "Sem livro"}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              {!recipes.some((r) => r.book_id !== currentBook.id) && (
+                <p>
+                  Não há outras receitas para adicionar. Crie uma nova receita
+                  neste livro.
+                </p>
+              )}
+            </div>
+            <button
+              className="primary"
+              disabled={moving || !selectedRecipes.length}
+              onClick={moveRecipes}
+            >
+              {moving ? (
+                <LoaderCircle className="spin" size={16} />
+              ) : (
+                <Check size={16} />
+              )}
+              Mover {selectedRecipes.length} receitas
+            </button>
+          </div>
+        </Modal>
+      )}
       {editor && (
         <Editor
           key={editor.id}
           initial={editor}
+          books={books}
           onClose={() => setEditor(null)}
           onSave={save}
           saving={saving}
@@ -670,6 +1001,10 @@ function App() {
             <div className="eyebrow">RECEITA · LE CHEF</div>
             <h2>{detail.title}</h2>
             <p>{detail.description}</p>
+            <p className="detail-book-label">
+              <BookOpen size={14} />
+              {books.find((b) => b.id === detail.book_id)?.title || "Sem livro"}
+            </p>
             <div className="detail-actions">
               <button
                 className="primary"
@@ -782,79 +1117,6 @@ function App() {
           </button>
         </div>
       )}
-    </div>
-  );
-}
-function Modal({
-  children,
-  onClose,
-  wide = false,
-}: {
-  children: React.ReactNode;
-  onClose: () => void;
-  wide?: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  closeRef.current = onClose;
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    ref.current?.focus();
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeRef.current();
-      if (e.key === "Tab") {
-        const nodes = ref.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input,select,textarea,[tabindex="0"],a[href]',
-        );
-        if (!nodes?.length) return;
-        const first = nodes[0],
-          last = nodes[nodes.length - 1];
-        if (
-          e.shiftKey &&
-          (document.activeElement === first ||
-            document.activeElement === ref.current)
-        ) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => {
-      document.body.style.overflow = overflow;
-      document.removeEventListener("keydown", handler);
-      previous?.focus();
-    };
-  }, []);
-  return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div
-        className={`modal ${wide ? "wide" : ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Receitas Le Chef"
-        tabIndex={-1}
-        ref={ref}
-      >
-        <button
-          className="modal-close"
-          aria-label="Fechar janela"
-          onClick={onClose}
-        >
-          <X size={20} />
-        </button>
-        {children}
-      </div>
     </div>
   );
 }
@@ -1030,6 +1292,7 @@ function Auth({
 }
 function Editor({
   initial,
+  books,
   onClose,
   onSave,
   saving,
@@ -1038,6 +1301,7 @@ function Editor({
   notify,
 }: {
   initial: Recipe;
+  books: RecipeBook[];
   onClose: () => void;
   onSave: (r: Recipe) => void;
   saving: boolean;
@@ -1250,6 +1514,23 @@ function Editor({
                     placeholder="Sabores, texturas e o que torna este prato especial..."
                     rows={3}
                   />
+                </label>
+                <label>
+                  Livro de receitas
+                  <select
+                    aria-label="Livro de receitas"
+                    value={r.book_id || ""}
+                    onChange={(e) =>
+                      update({ book_id: e.target.value || null })
+                    }
+                  >
+                    <option value="">Sem livro</option>
+                    {books.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.title}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   Categoria

@@ -20,6 +20,7 @@ export type Recipe = {
   favorite: boolean;
   updated_at: string;
   user_id?: string;
+  book_id?: string | null;
 };
 export const categories = [
   "Todas as receitas",
@@ -65,6 +66,13 @@ const make = (
   description: string,
 ): Recipe => ({
   id,
+  book_id: ["demo-2", "demo-3", "demo-6"].includes(id)
+    ? "book-pasta"
+    : id === "demo-4"
+      ? "book-garden"
+      : id === "demo-5"
+        ? "book-dessert"
+        : null,
   title,
   category,
   cover: photo(image),

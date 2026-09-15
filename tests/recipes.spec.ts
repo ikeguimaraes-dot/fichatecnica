@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 test("biblioteca: busca, categorias, favoritos e custos", async ({ page }) => {
   await page.goto("/");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /Todas as receitas/ })
+    .click();
   await expect(page.locator(".recipe-card")).toHaveCount(6);
   await page.getByRole("button", { name: "Sobremesas", exact: true }).click();
   await expect(page.locator(".recipe-card")).toHaveCount(1);
@@ -25,19 +29,21 @@ test("criação, cálculo g/kg, foto, edição, persistência e exclusão", asyn
   page,
 }) => {
   await page.goto("/");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /Todas as receitas/ })
+    .click();
   await page.getByRole("button", { name: "Nova receita", exact: true }).click();
   await page.getByLabel("Nome do prato").fill("Receita de teste");
   await page.getByLabel("Rendimento (porções)").fill("2");
-  await page
-    .getByLabel("Adicionar foto principal")
-    .setInputFiles({
-      name: "prato.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRz8AAAAASUVORK5CYII=",
-        "base64",
-      ),
-    });
+  await page.getByLabel("Adicionar foto principal").setInputFiles({
+    name: "prato.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRz8AAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByLabel("Ingrediente 1", { exact: true }).fill("Farinha");
   await page.getByLabel("Quantidade 1", { exact: true }).fill("250");
@@ -56,6 +62,10 @@ test("criação, cálculo g/kg, foto, edição, persistência e exclusão", asyn
   await page.getByRole("button", { name: "Salvar receita" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /Todas as receitas/ })
+    .click();
   await page
     .getByRole("button", { name: "Receita de teste", exact: true })
     .click();
@@ -77,6 +87,10 @@ test("responsividade e captura desktop/celular", async ({ page }) => {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.setViewportSize({ width: 1440, height: 1100 });
   await page.goto("/");
+  await page
+    .locator("nav")
+    .getByRole("button", { name: /Todas as receitas/ })
+    .click();
   await expect(page.locator(".recipe-card")).toHaveCount(6);
   await page.screenshot({
     path: "test-results/desktop.png",

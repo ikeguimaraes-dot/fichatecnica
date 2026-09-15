@@ -20,7 +20,10 @@ O projeto já usa a URL e a chave **publicável** do Supabase configurado. Para 
 
 ## Funcionalidades
 
-- Biblioteca com busca por prato e ingrediente, categorias, favoritos e visualizações em grade/lista.
+- Biblioteca com vários livros, cada um com nome, descrição, tema de capa e foto opcional.
+- Receitas organizadas por livro; criação dentro do livro, seleção no editor e movimentação em lote de receitas existentes.
+- Visões globais Todas as receitas, Sem livro, favoritos e custos. Busca e categorias continuam disponíveis dentro de cada livro.
+- Excluir um livro preserva suas receitas em Sem livro; receitas existentes permanecem acessíveis.
 - Ficha com descrição, rendimento, tempo de preparo, ingredientes, etapas, fotos e notas.
 - Custos calculados a partir da quantidade em g ou kg e do preço por kg. O total usa os valores sem arredondamento intermediário; exibição em reais com duas casas decimais.
 - Custo total e por porção. Valores correspondem aos ingredientes; mão de obra, energia e perdas não são calculadas.
@@ -36,6 +39,8 @@ As migrações em `supabase/migrations/` criam uma estrutura própria e a identi
 
 Estrutura aplicada ao projeto informado:
 
+- `public.receita_livro`: livros privados por conta, com nome, descrição, capa e tema.
+- `public.receita.book_id`: vínculo opcional ao livro, com chave estrangeira que também verifica o proprietário. Ao excluir um livro, apenas esse vínculo é removido.
 - `public.receita`: uma ficha por registro, com ingredientes e etapas em JSONB para salvar o documento atomicamente.
 - `receita-fotos`: bucket privado; caminhos começam com o ID do usuário. Acesso às imagens por URLs assinadas com validade de 24 horas; recarregue a página para renová-las.
 - RLS em SELECT, INSERT, UPDATE e DELETE, limitada ao proprietário. Visitantes não têm acesso à tabela.
@@ -59,11 +64,10 @@ Nenhum servidor administrativo ou chave secreta é necessário no deploy.
 
 ```sh
 npx playwright install chromium
-npm run dev -- --port 5174
 npm test
 ```
 
-Os testes verificam busca, filtros, favoritos, criação/edição/exclusão, foto, cálculo com unidades diferentes, persistência e largura mobile. A configuração usa `http://localhost:5174`.
+Os testes verificam busca, filtros, favoritos, criação/edição/exclusão, foto, cálculo com unidades diferentes, persistência e largura mobile. O Playwright compila e inicia uma prévia em `http://localhost:4173`. Os testes de livros também cobrem movimentação entre livros, capa, exclusão preservando receitas e dados locais anteriores.
 
 ## Design
 
