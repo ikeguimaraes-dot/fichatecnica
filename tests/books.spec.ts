@@ -78,6 +78,7 @@ test("nova receita pertence ao livro aberto e pode ser movida no editor", async 
     page.getByLabel("Livro de receitas", { exact: true }),
   ).toHaveValue("book-french");
   await page.getByLabel("Nome do prato").fill("Crêpe");
+  await page.getByLabel("Rendimento final (kg)").fill("0.5");
   await page.getByRole("button", { name: "Continuar" }).click();
   await page.getByLabel("Ingrediente 1", { exact: true }).fill("Farinha");
   await page.getByLabel("Quantidade 1", { exact: true }).fill("100");

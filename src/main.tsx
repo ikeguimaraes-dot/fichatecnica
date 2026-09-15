@@ -25,12 +25,16 @@ import {
   Sparkles,
   Trash2,
   Utensils,
-  Users,
+  Scale,
   X,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import {
   categories,
+  costPerKg,
+  costPerKgLabel,
+  yieldLabel,
+  normalizeRecipe,
   emptyRecipe,
   examples,
   itemCost,
@@ -49,7 +53,7 @@ function readDemo(): Recipe[] {
     const saved: Recipe[] =
       JSON.parse(localStorage.getItem(localKey) || "null") || examples;
     const availableBooks = readBooks();
-    return saved.map((r) => {
+    return saved.map(normalizeRecipe).map((r) => {
       if (r.book_id !== undefined) return r;
       const suggested = examples.find((x) => x.id === r.id)?.book_id;
       return {
@@ -155,7 +159,7 @@ function App() {
         setRecipes([]);
         setBooks([]);
       } else {
-        setRecipes(recipeResult.data as Recipe[]);
+        setRecipes((recipeResult.data as Recipe[]).map(normalizeRecipe));
         setBooks(bookResult.data as RecipeBook[]);
       }
       setLoading(false);
@@ -201,7 +205,10 @@ function App() {
   const photo = (p: string) =>
     /^(https?:|data:|blob:)/.test(p) ? p : photoUrls[p] || "";
   async function persist(recipe: Recipe) {
-    const next = { ...recipe, updated_at: new Date().toISOString() };
+    const next = {
+      ...normalizeRecipe(recipe),
+      updated_at: new Date().toISOString(),
+    };
     if (session) {
       const { error } = await supabase
         .from("receita")
@@ -363,7 +370,7 @@ function App() {
       sort === "name"
         ? a.title.localeCompare(b.title)
         : sort === "cost"
-          ? totalCost(a) / a.servings - totalCost(b) / b.servings
+          ? (costPerKg(a) ?? Infinity) - (costPerKg(b) ?? Infinity)
           : b.updated_at.localeCompare(a.updated_at),
     );
   return (
@@ -757,7 +764,7 @@ function App() {
                     >
                       <option value="recent">Mais recentes</option>
                       <option value="name">Nome: A a Z</option>
-                      <option value="cost">Menor custo por porção</option>
+                      <option value="cost">Menor custo por kg</option>
                     </select>
                   </label>
                 </div>
@@ -870,16 +877,14 @@ function App() {
                             </span>
                             <span className="meta-dot">·</span>
                             <span>
-                              <Users size={13} />
-                              {r.servings} porções
+                              <Scale size={13} />
+                              {yieldLabel(r)}
                             </span>
                           </div>
                           <div className="card-footer">
                             <div>
-                              <span>CUSTO POR PORÇÃO</span>
-                              <strong>
-                                {money(totalCost(r) / r.servings)}
-                              </strong>
+                              <span>CUSTO POR KG</span>
+                              <strong>{costPerKgLabel(r)}</strong>
                             </div>
                             <button
                               aria-label={`Abrir ficha de ${r.title}`}
@@ -1033,18 +1038,25 @@ function App() {
                 <strong>{money(totalCost(detail))}</strong>
               </div>
               <div>
-                <span>Por porção</span>
-                <strong>{money(totalCost(detail) / detail.servings)}</strong>
+                <span>Custo por kg</span>
+                <strong>{costPerKgLabel(detail)}</strong>
               </div>
               <div>
                 <span>Rendimento</span>
-                <strong>{detail.servings} porções</strong>
+                <strong>{yieldLabel(detail)}</strong>
               </div>
               <div>
                 <span>Preparo</span>
                 <strong>{detail.minutes} min</strong>
               </div>
             </div>
+            {detail.yield_kg === null && (
+              <p className="form-message">
+                Informe o rendimento final em kg ao editar esta receita para
+                calcular o custo por kg. O custo total dos ingredientes
+                permanece disponível.
+              </p>
+            )}
             <h3>Ingredientes</h3>
             <div className="table-scroll">
               <table>
@@ -1390,16 +1402,17 @@ function Editor({
       return;
     }
     if (
-      !Number.isInteger(r.servings) ||
-      r.servings < 1 ||
-      r.servings > 10000 ||
+      typeof r.yield_kg !== "number" ||
+      !Number.isFinite(r.yield_kg) ||
+      r.yield_kg <= 0 ||
+      r.yield_kg > 10000 ||
       !Number.isInteger(r.minutes) ||
       r.minutes < 0 ||
       r.minutes > 100000
     ) {
       setTab(0);
       setValidation(
-        "Informe um rendimento inteiro de 1 a 10.000 e um tempo válido.",
+        "Informe o rendimento final em kg, maior que zero e até 10.000 kg, e um tempo válido.",
       );
       return;
     }
@@ -1543,17 +1556,30 @@ function Editor({
                     ))}
                   </select>
                 </label>
+                <p id="yield-help" className="yield-help">
+                  Peso final da receita pronta, sempre em kg. Ex.: 500 g = 0,5
+                  kg.
+                </p>
                 <div className="field-row">
                   <label>
-                    Rendimento (porções)
+                    Rendimento final (kg)
                     <input
+                      aria-describedby="yield-help"
                       type="number"
                       required
-                      min={1}
+                      min={0}
+                      step="any"
                       max={10000}
-                      value={r.servings}
+                      placeholder="Ex.: 0,5 ou 2,5"
+                      aria-label="Rendimento final (kg)"
+                      value={r.yield_kg ?? ""}
                       onChange={(e) =>
-                        update({ servings: Number(e.target.value) })
+                        update({
+                          yield_kg:
+                            e.target.value === ""
+                              ? null
+                              : Number(e.target.value),
+                        })
                       }
                     />
                   </label>
@@ -1828,7 +1854,9 @@ function Editor({
             <span>CUSTO TOTAL DO PRATO</span>
             <strong data-testid="editor-total">{money(totalCost(r))}</strong>
             <small>
-              {money(totalCost(r) / Math.max(1, r.servings))} / porção
+              {costPerKg(r) === null
+                ? "Informe o rendimento em kg"
+                : `${costPerKgLabel(r)} / kg`}
             </small>
           </div>
           <div>

@@ -35,7 +35,7 @@ test("criação, cálculo g/kg, foto, edição, persistência e exclusão", asyn
     .click();
   await page.getByRole("button", { name: "Nova receita", exact: true }).click();
   await page.getByLabel("Nome do prato").fill("Receita de teste");
-  await page.getByLabel("Rendimento (porções)").fill("2");
+  await page.getByLabel("Rendimento final (kg)").fill("2");
   await page.getByLabel("Adicionar foto principal").setInputFiles({
     name: "prato.png",
     mimeType: "image/png",

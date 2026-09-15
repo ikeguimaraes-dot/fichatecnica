@@ -24,9 +24,9 @@ O projeto já usa a URL e a chave **publicável** do Supabase configurado. Para 
 - Receitas organizadas por livro; criação dentro do livro, seleção no editor e movimentação em lote de receitas existentes.
 - Visões globais Todas as receitas, Sem livro, favoritos e custos. Busca e categorias continuam disponíveis dentro de cada livro.
 - Excluir um livro preserva suas receitas em Sem livro; receitas existentes permanecem acessíveis.
-- Ficha com descrição, rendimento, tempo de preparo, ingredientes, etapas, fotos e notas.
+- Ficha com descrição, rendimento final em kg (aceita decimais), tempo de preparo, ingredientes, etapas, fotos e notas.
 - Custos calculados a partir da quantidade em g ou kg e do preço por kg. O total usa os valores sem arredondamento intermediário; exibição em reais com duas casas decimais.
-- Custo total e por porção. Valores correspondem aos ingredientes; mão de obra, energia e perdas não são calculadas.
+- Custo total e por kg da receita pronta (custo total ÷ rendimento final em kg). Valores correspondem aos ingredientes; mão de obra, energia e perdas não são calculadas.
 - Upload da foto principal e de uma foto por etapa, em JPG, PNG ou WebP, até 10 MB.
 - Impressão da ficha pelo navegador e opção de salvar como PDF.
 - Cadastro, login, recuperação de senha e dados privados por conta.
@@ -40,6 +40,7 @@ As migrações em `supabase/migrations/` criam uma estrutura própria e a identi
 Estrutura aplicada ao projeto informado:
 
 - `public.receita_livro`: livros privados por conta, com nome, descrição, capa e tema.
+- `public.receita.yield_kg`: peso final produzido em kg. Receitas antigas ficam com rendimento a informar, sem converter porções em kg. `servings` é mantido apenas como histórico no banco.
 - `public.receita.book_id`: vínculo opcional ao livro, com chave estrangeira que também verifica o proprietário. Ao excluir um livro, apenas esse vínculo é removido.
 - `public.receita`: uma ficha por registro, com ingredientes e etapas em JSONB para salvar o documento atomicamente.
 - `receita-fotos`: bucket privado; caminhos começam com o ID do usuário. Acesso às imagens por URLs assinadas com validade de 24 horas; recarregue a página para renová-las.

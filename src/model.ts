@@ -11,7 +11,7 @@ export type Recipe = {
   title: string;
   category: string;
   description: string;
-  servings: number;
+  yield_kg: number | null;
   minutes: number;
   cover: string;
   ingredients: Ingredient[];
@@ -38,12 +38,40 @@ export const itemCost = (i: Ingredient) =>
   (i.quantity * i.price) / (i.unit === "g" ? 1000 : 1);
 export const totalCost = (r: Recipe) =>
   r.ingredients.reduce((sum, i) => sum + itemCost(i), 0);
+export const costPerKg = (r: Recipe): number | null =>
+  typeof r.yield_kg === "number" &&
+  Number.isFinite(r.yield_kg) &&
+  r.yield_kg > 0
+    ? totalCost(r) / r.yield_kg
+    : null;
+export const costPerKgLabel = (r: Recipe) => {
+  const cost = costPerKg(r);
+  return cost === null ? "A informar" : money(cost);
+};
+export const yieldLabel = (r: Recipe) =>
+  r.yield_kg
+    ? `${new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 6 }).format(r.yield_kg)} kg`
+    : "Rendimento a informar";
+export function normalizeRecipe(r: Recipe): Recipe {
+  const { servings: _legacyPortions, ...current } = r as Recipe & {
+    servings?: number;
+  };
+  return {
+    ...current,
+    yield_kg:
+      typeof r.yield_kg === "number" &&
+      Number.isFinite(r.yield_kg) &&
+      r.yield_kg > 0
+        ? r.yield_kg
+        : null,
+  };
+}
 export const emptyRecipe = (): Recipe => ({
   id: crypto.randomUUID(),
   title: "",
   category: "Principais",
   description: "",
-  servings: 1,
+  yield_kg: null,
   minutes: 30,
   cover: "",
   ingredients: [
@@ -77,7 +105,17 @@ const make = (
   category,
   cover: photo(image),
   minutes,
-  servings: 2,
+  // Finished weights are illustrative, just like the sample recipes.
+  yield_kg: (
+    {
+      "demo-1": 0.6,
+      "demo-2": 0.65,
+      "demo-3": 0.7,
+      "demo-4": 0.42,
+      "demo-5": 0.35,
+      "demo-6": 0.25,
+    } as Record<string, number>
+  )[id],
   description,
   ingredients: items.map(([name, quantity, price], index) => ({
     id: `${id}-${index}`,

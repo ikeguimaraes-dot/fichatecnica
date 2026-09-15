@@ -3115,3 +3115,12 @@ select:focus {
     font-size: 28px;
   }
 }
+.yield-help {
+  font-size: 10px;
+  color: #986440;
+  line-height: 1.7;
+  margin: 5px 0 15px;
+}
+.card-meta {
+  flex-wrap: wrap;
+}
