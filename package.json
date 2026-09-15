@@ -1,0 +1,38 @@
+{
+  "name": "fichatecnica",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "playwright test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ikeguimaraes-dot/fichatecnica.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/ikeguimaraes-dot/fichatecnica/issues"
+  },
+  "homepage": "https://github.com/ikeguimaraes-dot/fichatecnica#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "lucide-react": "1.46.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
+  }
+}
