@@ -32,10 +32,12 @@ O projeto já usa a URL e a chave **publicável** do Supabase configurado. Para 
 
 ## Banco de dados
 
-A migração `supabase/migrations/20260915193451_create_mise_recipe_book.sql` corresponde à estrutura aplicada ao projeto informado:
+As migrações em `supabase/migrations/` criam uma estrutura própria e a identificam como `receita`. A segunda migração renomeia apenas a estrutura criada por este aplicativo. Nenhuma tabela legada de receitas, fichas técnicas ou ingredientes é utilizada. O único vínculo externo é com `auth.users`, para autenticação do Supabase.
 
-- `public.mise_recipes`: uma ficha por registro, com ingredientes e etapas em JSONB para salvar o documento atomicamente.
-- `mise-photos`: bucket privado; caminhos começam com o ID do usuário. Acesso às imagens por URLs assinadas com validade de 24 horas; recarregue a página para renová-las.
+Estrutura aplicada ao projeto informado:
+
+- `public.receita`: uma ficha por registro, com ingredientes e etapas em JSONB para salvar o documento atomicamente.
+- `receita-fotos`: bucket privado; caminhos começam com o ID do usuário. Acesso às imagens por URLs assinadas com validade de 24 horas; recarregue a página para renová-las.
 - RLS em SELECT, INSERT, UPDATE e DELETE, limitada ao proprietário. Visitantes não têm acesso à tabela.
 - A aplicação cria novos arquivos para cada upload. Fotos removidas de uma ficha ou de uma edição cancelada podem continuar no bucket; a limpeza desses arquivos pode ser feita posteriormente com uma rotina de retenção.
 

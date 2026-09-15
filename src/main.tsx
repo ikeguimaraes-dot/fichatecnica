@@ -92,7 +92,7 @@ function App() {
     }
     setLoading(true);
     supabase
-      .from("mise_recipes")
+      .from("receita")
       .select("*")
       .order("updated_at", { ascending: false })
       .then(({ data, error }) => {
@@ -126,7 +126,7 @@ function App() {
     ];
     if (paths.length)
       supabase.storage
-        .from("mise-photos")
+        .from("receita-fotos")
         .createSignedUrls(paths, 86400)
         .then(({ data }) => {
           if (active && data)
@@ -148,7 +148,7 @@ function App() {
     const next = { ...recipe, updated_at: new Date().toISOString() };
     if (session) {
       const { error } = await supabase
-        .from("mise_recipes")
+        .from("receita")
         .upsert({ ...next, user_id: session.user.id });
       if (error) throw error;
     } else {
@@ -188,7 +188,7 @@ function App() {
     try {
       if (session) {
         const { error } = await supabase
-          .from("mise_recipes")
+          .from("receita")
           .delete()
           .eq("id", r.id);
         if (error) throw error;
@@ -667,7 +667,7 @@ function App() {
             <span className="pill">{detail.category}</span>
           </div>
           <div className="detail-content">
-            <div className="eyebrow">FICHA TÉCNICA · MISE</div>
+            <div className="eyebrow">RECEITA · MISE</div>
             <h2>{detail.title}</h2>
             <p>{detail.description}</p>
             <div className="detail-actions">
@@ -1089,7 +1089,7 @@ function Editor({
       if (session) {
         path = `${session.user.id}/${r.id}/${crypto.randomUUID()}.${file.type.split("/")[1]}`;
         const { error } = await supabase.storage
-          .from("mise-photos")
+          .from("receita-fotos")
           .upload(path, file);
         if (error) throw error;
         setPreviews((p) => ({ ...p, [path]: data }));
