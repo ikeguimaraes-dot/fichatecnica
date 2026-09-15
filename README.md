@@ -51,6 +51,8 @@ Compatível com hospedagens estáticas, como Vercel, Netlify e Cloudflare Pages:
 - Diretório de saída: `dist`
 - Variáveis opcionais: as de `.env.example`.
 
+O arquivo `vercel.json` define explicitamente o framework Vite, a instalação via `npm ci` e a saída `dist`. Isso evita que um preset Next.js selecionado no painel impeça o deploy. A raiz do projeto na Vercel deve ser a raiz deste repositório.
+
 Nenhum servidor administrativo ou chave secreta é necessário no deploy.
 
 ## Verificação
