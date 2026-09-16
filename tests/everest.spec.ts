@@ -56,6 +56,16 @@ const units = [
   },
 ];
 async function login(page: Page) {
+  await page.route("**/api/everest-preparation?**", (r) =>
+    r.fulfill({
+      json: {
+        content: { steps: [], finalPhoto: null },
+        revision: null,
+        updatedAt: null,
+        photos: {},
+      },
+    }),
+  );
   await page.addInitScript(() =>
     localStorage.setItem(
       "sb-iqgrvptrtphvbmvrqntm-auth-token",
@@ -140,7 +150,7 @@ test("livro e detalhes usam só a cópia salva e fixam a versão consultada", as
   await standard(page);
   const requests: string[] = [];
   page.on("request", (r) => {
-    if (r.url().includes("/api/everest"))
+    if (r.url().includes("/api/everest?"))
       requests.push(r.method() + " " + new URL(r.url()).search);
   });
   await menu(page);
@@ -157,7 +167,9 @@ test("livro e detalhes usam só a cópia salva e fixam a versão consultada", as
     `GET ?id=12&unit=1&snapshot=${snapshot}`,
   ]);
   await page.emulateMedia({ media: "print" });
-  await expect(page.getByText("Farinha", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".prep-paper").getByText("Farinha", { exact: true }),
+  ).toBeVisible();
 });
 test("troca de livro não mistura unidades", async ({ page }) => {
   await login(page);
@@ -318,4 +330,236 @@ test("livro sem primeira cópia informa sincronização pendente", async ({
   await book(page);
   await expect(page.getByText("Seu livro está sendo preparado")).toBeVisible();
   await expect(page.locator(".everest-record")).toHaveCount(0);
+});
+
+const photoPath = "1/12/11111111-1111-4111-8111-111111111111.jpg";
+const tinyPhoto =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7ioAAAAASUVORK5CYII=";
+async function openPreparation(page: Page) {
+  await menu(page);
+  await book(page);
+  await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
+  await page.getByRole("tab", { name: "Modo de preparo" }).click();
+}
+test("preparo salva etapas, reordena e preserva ao reabrir; fotos ampliam e A4 tem uma página", async ({
+  page,
+}) => {
+  await login(page);
+  await standard(page);
+  let stored: any = {
+    content: {
+      steps: [
+        {
+          title: "Misturar",
+          text: "Misture a farinha até obter uma massa uniforme.",
+          photos: [photoPath],
+        },
+      ],
+      finalPhoto: photoPath,
+    },
+    revision: "r1",
+    updatedAt: null,
+    photos: { [photoPath]: tinyPhoto },
+  };
+  await page.route("**/api/everest-preparation?**", async (r) => {
+    if (r.request().method() === "PUT") {
+      const body = r.request().postDataJSON();
+      expect(body.revision).toBe("r1");
+      stored = {
+        ...stored,
+        content: body.content,
+        revision: "r2",
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    await r.fulfill({ json: stored });
+  });
+  await openPreparation(page);
+  const thumb = page.getByRole("button", { name: "Ampliar foto 1 da etapa 1" });
+  expect((await thumb.boundingBox())!.width).toBeLessThanOrEqual(100);
+  await thumb.click();
+  await expect(page.getByAltText("Foto do preparo ampliada")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByAltText("Foto do preparo ampliada")).toHaveCount(0);
+  await expect(
+    page.getByRole("tab", { name: "Modo de preparo" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Editar preparo" }).click();
+  await page
+    .getByRole("button", { name: "Adicionar etapa", exact: true })
+    .click();
+  await page.getByLabel("Título da etapa 2").fill("Descansar");
+  await page
+    .getByLabel("Instruções da etapa 2")
+    .fill("Cubra e deixe descansar por 30 minutos.");
+  await page.getByLabel("Subir etapa 2").click();
+  await expect(page.getByLabel("Título da etapa 1")).toHaveValue("Descansar");
+  await page.getByRole("button", { name: "Salvar preparo" }).click();
+  await expect(page.getByText("Modo de preparo salvo.")).toBeVisible();
+  expect(stored.content.steps[1].photos).toEqual([photoPath]);
+  await page.getByLabel("Fechar janela").click();
+  await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
+  await page.getByRole("tab", { name: "Modo de preparo" }).click();
+  await expect(page.locator(".prep-steps")).toContainText("Descansar");
+  await page.screenshot({
+    path: "test-results/preparation-desktop.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.getByRole("button", { name: "Prévia A4" }).click();
+  const preview = page.getByRole("dialog", { name: "Prévia de impressão A4" });
+  await expect(
+    preview.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeEnabled();
+  await page.screenshot({
+    path: "test-results/preparation-a4.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  const pdf = await page.pdf({
+    path: "test-results/preparation-a4.pdf",
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
+  expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(
+    1,
+  );
+  await page.emulateMedia({ media: "screen" });
+  await preview.getByRole("button", { name: "Voltar à ficha" }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "test-results/preparation-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});
+test("conteúdo excessivo avisa e bloqueia impressão sem cortar o preparo", async ({
+  page,
+}) => {
+  await login(page);
+  await standard(page);
+  await page.route("**/api/everest-preparation?**", (r) =>
+    r.fulfill({
+      json: {
+        content: {
+          steps: Array.from({ length: 24 }, (_, i) => ({
+            title: `Etapa ${i + 1}`,
+            text: "Instrução detalhada de preparo. ".repeat(50),
+            photos: [],
+          })),
+          finalPhoto: null,
+        },
+        revision: "r1",
+        updatedAt: null,
+        photos: {},
+      },
+    }),
+  );
+  await openPreparation(page);
+  await page.getByRole("button", { name: "Prévia A4" }).click();
+  const preview = page.getByRole("dialog", { name: "Prévia de impressão A4" });
+  await expect(preview.getByRole("status")).toContainText(
+    "Ultrapassa uma folha",
+  );
+  await expect(
+    preview.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeDisabled();
+  await preview.getByRole("checkbox").check();
+  await expect(
+    preview.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeDisabled();
+});
+test("erro de salvamento mantém rascunho e fechamento exige descarte", async ({
+  page,
+}) => {
+  await login(page);
+  await standard(page);
+  await page.route("**/api/everest-preparation?**", (r) =>
+    r.request().method() === "PUT"
+      ? r.fulfill({
+          status: 409,
+          json: { error: "Este preparo foi alterado em outra janela." },
+        })
+      : r.fulfill({
+          json: {
+            content: { steps: [], finalPhoto: null },
+            revision: null,
+            photos: {},
+          },
+        }),
+  );
+  await openPreparation(page);
+  await page.getByRole("button", { name: "Adicionar primeira etapa" }).click();
+  await page
+    .getByRole("button", { name: "Adicionar etapa", exact: true })
+    .click();
+  await page
+    .getByLabel("Instruções da etapa 1")
+    .fill("Minha instrução preservada");
+  await page.getByRole("button", { name: "Salvar preparo" }).click();
+  await expect(page.getByRole("alert")).toContainText("outra janela");
+  await expect(page.getByLabel("Instruções da etapa 1")).toHaveValue(
+    "Minha instrução preservada",
+  );
+  page.once("dialog", (d) => d.dismiss());
+  await page.getByLabel("Fechar janela").click();
+  await expect(page.getByLabel("Instruções da etapa 1")).toBeVisible();
+});
+test("upload de foto usa URL assinada e salva apenas o caminho privado", async ({
+  page,
+}) => {
+  await login(page);
+  await standard(page);
+  await page.route("**/api/everest-preparation?**", (r) =>
+    r.request().method() === "POST"
+      ? r.fulfill({ json: { path: photoPath, token: "upload-token" } })
+      : r.request().method() === "PUT"
+        ? r.fulfill({
+            json: {
+              content: r.request().postDataJSON().content,
+              revision: "r1",
+              updatedAt: null,
+              photos: { [photoPath]: tinyPhoto },
+            },
+          })
+        : r.fulfill({
+            json: {
+              content: { steps: [], finalPhoto: null },
+              revision: null,
+              photos: {},
+            },
+          }),
+  );
+  await page.route("**/storage/v1/object/upload/sign/**", (r) =>
+    r.fulfill({ json: { Key: photoPath } }),
+  );
+  await openPreparation(page);
+  await page.getByRole("button", { name: "Adicionar primeira etapa" }).click();
+  await page
+    .getByRole("button", { name: "Adicionar etapa", exact: true })
+    .click();
+  await page.getByLabel("Instruções da etapa 1").fill("Misture.");
+  const png = await page.evaluate(async () => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 20;
+    c.getContext("2d")!.fillRect(0, 0, 20, 20);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await page
+    .getByLabel("Foto da etapa 1", { exact: true })
+    .setInputFiles({
+      name: "foto.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+  await expect(
+    page.getByRole("button", { name: "Ampliar foto 1 da etapa 1" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Salvar preparo" }).click();
+  await expect(page.getByText("Modo de preparo salvo.")).toBeVisible();
 });

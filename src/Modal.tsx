@@ -18,11 +18,14 @@ export function Modal({
     document.body.style.overflow = "hidden";
     ref.current?.focus();
     const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof Node && !ref.current?.contains(e.target)) return;
       if (e.key === "Escape") closeRef.current();
       if (e.key === "Tab") {
-        const nodes = ref.current?.querySelectorAll<HTMLElement>(
-          'button:not(:disabled),input,select,textarea,[tabindex="0"],a[href]',
-        );
+        const nodes = Array.from(
+          ref.current?.querySelectorAll<HTMLElement>(
+            'button:not(:disabled),input,select,textarea,[tabindex="0"],a[href]',
+          ) || [],
+        ).filter((node) => node.getClientRects().length > 0);
         if (!nodes?.length) return;
         const first = nodes[0],
           last = nodes[nodes.length - 1];

@@ -113,3 +113,11 @@ Os testes da integração cobrem autenticação, autorização, normalização d
 Identidade Le Chef: fundo branco, laranja ácido `#ff6500` e texto escuro.
 
 Tipografia Playfair Display, DM Sans e Manrope (Google Fonts). Fotografias ilustrativas do Unsplash. Recursos externos requerem conexão; as fichas próprias usam o Supabase Storage.
+
+### Modo de preparo das fichas Everest
+
+A ficha possui duas abas: dados técnicos de leitura e **Modo de preparo**, editável no Le Chef. Cada preparo pertence à combinação `(unit_id, ficha_id)` e fica em `receita_everest_preparo`, independente dos snapshots. A sincronização do Everest não altera nem exclui o preparo. A API verifica a sessão, a lista de usuários autorizados e o vínculo da ficha com a unidade. Uma revisão UUID impede sobrescrever alterações simultâneas.
+
+Etapas podem ser adicionadas, reordenadas e removidas; cada etapa aceita até três fotos e a ficha aceita uma referência final (até 24 fotos e 24 etapas no total). Imagens JPG/PNG/WebP de até 20 MB são convertidas no navegador para JPEG de até 1600 px e 2 MB. O bucket privado `receita-everest-preparo` aceita apenas JPEG. Uploads usam autorizações temporárias emitidas pelo servidor; leitura usa URLs assinadas por uma hora. Reabra a ficha para renovar as URLs. Caminhos são restritos à unidade/ficha, e as tabelas e funções são acessíveis apenas pelo servidor. Remover uma foto do preparo remove sua referência; arquivos antigos ou de edições canceladas permanecem privados no bucket para futura limpeza controlada.
+
+**Prévia A4** reúne ingredientes, quantidades, custos, rendimento, etapas e miniaturas. O layout tem as mesmas medidas na prévia e na impressão (A4, margem 10 mm); o botão é bloqueado enquanto houver alterações não salvas, fotos pendentes ou conteúdo que exceda uma página. O modo compacto reduz espaços e miniaturas; textos excessivos precisam ser resumidos pelo usuário. Imprimir com escala 100% e sem cabeçalhos/rodapés do navegador. Não há truncamento nem redução ilimitada de fonte para forçar o encaixe.

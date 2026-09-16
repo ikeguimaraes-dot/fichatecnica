@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ClipboardList,
   Cloud,
-  Download,
   LoaderCircle,
   LockKeyhole,
   RefreshCw,
@@ -19,6 +18,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { Modal } from "./Modal";
+import { EverestPreparation } from "./EverestPreparation";
 import type {
   EverestRecord,
   EverestDetail,
@@ -169,6 +169,11 @@ function UnitRecipes({
     }
   }
   async function open(record: EverestRecord) {
+    if (
+      preparationDirty.current &&
+      !window.confirm("Reabrir a ficha e descartar o preparo ainda não salvo?")
+    )
+      return;
     detailController.current?.abort();
     const controller = new AbortController();
     detailController.current = controller;
@@ -195,7 +200,13 @@ function UnitRecipes({
       if (!controller.signal.aborted) setDetailLoading(false);
     }
   }
+  const preparationDirty = useRef(false);
   function close() {
+    if (
+      preparationDirty.current &&
+      !window.confirm("Sair sem salvar o modo de preparo?")
+    )
+      return;
     detailController.current?.abort();
     setSelected(null);
     setDetail(null);
@@ -559,21 +570,22 @@ function UnitRecipes({
                   </button>
                 </div>
               ) : (
-                detail && (
-                  <>
+                detail &&
+                unit && (
+                  <EverestPreparation
+                    key={`${unit.id}-${detail.id}`}
+                    detail={detail}
+                    unit={unit}
+                    onDirty={(dirty) => {
+                      preparationDirty.current = dirty;
+                    }}
+                  >
                     <div className="everest-detail-actions">
                       <span
                         className={`everest-status ${detail.status === 1 ? "active" : ""}`}
                       >
                         {statusName(detail.status)}
                       </span>
-                      <button
-                        className="secondary"
-                        onClick={() => window.print()}
-                      >
-                        <Download size={15} />
-                        Imprimir / PDF
-                      </button>
                     </div>
                     <div className="detail-summary">
                       <div>
@@ -794,13 +806,6 @@ function UnitRecipes({
                         )}
                       </details>
                     )}
-                    <h3>Modo de preparo</h3>
-                    <p
-                      className={`everest-long-text ${detail.instructions ? "" : "everest-no-data"}`}
-                    >
-                      {detail.instructions ||
-                        "O modo de preparo não foi informado no Everest."}
-                    </p>
                     {detail.notes && (
                       <div className="notes">
                         <h4>Observações</h4>
@@ -823,7 +828,7 @@ function UnitRecipes({
                         </strong>
                       </span>
                     </div>
-                  </>
+                  </EverestPreparation>
                 )
               )}
             </div>
