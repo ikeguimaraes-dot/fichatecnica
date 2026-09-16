@@ -70,13 +70,20 @@ export function createUpstream({
   const cache = new Map();
   let queue = Promise.resolve(),
     lastStart = 0;
-  return function read({ page, id, refresh = false }) {
+  return function read({ page, id, kind = "recipes", unit, refresh = false }) {
     const environment = env.EVEREST_ENVIRONMENT || "production";
     const base = bases[environment];
     const entity = env.EVEREST_ENTITY;
     if (!base || !entity || !env.EVEREST_USERNAME || !env.EVEREST_PASSWORD)
       throw new Error("configuration");
-    const url = new URL("/api/adm/fichatecnica" + (id ? "/" + id : ""), base);
+    const path =
+      kind === "units"
+        ? "/api/sis/empresa"
+        : kind === "members"
+          ? "/api/adm/itemempresa"
+          : "/api/adm/fichatecnica" + (id ? "/" + id : "");
+    const url = new URL(path, base);
+    if (kind === "members") url.searchParams.set("cd_empresa", String(unit));
     url.searchParams.set("x-Entidade", entity);
     if (!id) url.searchParams.set("x-Pagina", String(page));
     const key = url.toString(),
@@ -119,7 +126,9 @@ export function createUpstream({
         if (result.record.id !== id) throw new Error("upstream");
       } else {
         if (!Array.isArray(raw)) throw new Error("invalid_response");
-        const totalPages = Number(response.headers.get("x-paginas"));
+        const pagination = response.headers.get("x-paginas");
+        const totalPages =
+          pagination === "0" && raw.length === 0 ? 1 : Number(pagination);
         if (
           !Number.isSafeInteger(totalPages) ||
           totalPages < 1 ||
@@ -127,7 +136,24 @@ export function createUpstream({
         )
           throw new Error("invalid_pagination");
         result = {
-          records: raw.map((r) => normalizeFicha(r)),
+          records: raw.map((r) => {
+            if (kind === "units") {
+              if (!positiveId(r.cd_empresa)) throw new Error("invalid_unit");
+              return {
+                id: Number(r.cd_empresa),
+                name:
+                  text(r.fantasia).trim() ||
+                  text(r.razao).trim() ||
+                  `Unidade ${r.cd_empresa}`,
+              };
+            }
+            if (kind === "members") {
+              if (Number(r.cd_empresa) !== unit || !positiveId(r.id_item))
+                throw new Error("invalid_membership");
+              return { itemId: Number(r.id_item) };
+            }
+            return normalizeFicha(r);
+          }),
           page,
           totalPages,
         };
@@ -207,10 +233,20 @@ export function createHandler({
       const url = new URL(req.url, "http://localhost");
       if (
         [...url.searchParams.keys()].some(
-          (k) => !["page", "id", "refresh"].includes(k),
+          (k) => !["page", "id", "refresh", "kind", "unit"].includes(k),
         )
       )
         return send(400, { error: "Parâmetros de consulta inválidos." });
+      const kind = url.searchParams.get("kind") || "recipes";
+      const unitText = url.searchParams.get("unit");
+      if (
+        !["recipes", "units", "members"].includes(kind) ||
+        (kind !== "recipes" && url.searchParams.has("id")) ||
+        (kind === "members"
+          ? !unitText || !/^\d+$/.test(unitText) || !positiveId(unitText)
+          : unitText !== null)
+      )
+        return send(400, { error: "Unidade ou consulta inválida." });
       const idText = url.searchParams.get("id"),
         pageText = url.searchParams.get("page") || "1";
       if (idText !== null && (!/^\d+$/.test(idText) || !positiveId(idText)))
@@ -223,6 +259,8 @@ export function createHandler({
         return send(400, { error: "Página inválida." });
       const result = await upstream({
         page: Number(pageText),
+        kind,
+        unit: unitText ? Number(unitText) : undefined,
         id: idText ? Number(idText) : undefined,
         refresh: url.searchParams.get("refresh") === "1",
       });

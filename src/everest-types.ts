@@ -36,3 +36,8 @@ export type EverestPage = {
   environment: string;
   fetchedAt: string;
 };
+
+export type EverestUnit = { id: number; name: string };
+export type EverestCollection<T> = Omit<EverestPage, "records"> & {
+  records: T[];
+};

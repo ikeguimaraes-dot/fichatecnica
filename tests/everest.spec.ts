@@ -58,7 +58,33 @@ async function login(page: any) {
     route.fulfill({ json: { id: "owner", email: "owner@example.com" } }),
   );
 }
+async function mockUnits(page: any) {
+  await page.route(
+    (url: URL) =>
+      url.pathname === "/api/everest" && url.searchParams.has("kind"),
+    (route: any) => {
+      const url = new URL(route.request().url());
+      const records =
+        url.searchParams.get("kind") === "units"
+          ? [
+              { id: 1, name: "MEET & EAT" },
+              { id: 3, name: "MADONNA CUCINA" },
+            ]
+          : [{ itemId: url.searchParams.get("unit") === "3" ? 24 : 23 }];
+      return route.fulfill({
+        json: {
+          records,
+          page: 1,
+          totalPages: 1,
+          environment: "production",
+          fetchedAt: "2026-09-16T14:00:00Z",
+        },
+      });
+    },
+  );
+}
 test("menu existe e visitante precisa entrar", async ({ page }) => {
+  await mockUnits(page);
   await page.goto("/");
   await page
     .getByRole("button", { name: "Ficha técnica", exact: true })
@@ -117,9 +143,13 @@ test("lista todas as páginas, busca, detalhes e unidade preservada", async ({
       },
     });
   });
+  await mockUnits(page);
   await page.goto("/");
   await page
     .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
     .click();
   await expect(page.locator(".everest-record")).toHaveCount(2);
   expect(seen).toContain("?page=2");
@@ -161,9 +191,13 @@ test("erro na segunda página deixa claro que a lista está incompleta e permite
           },
         }),
   );
+  await mockUnits(page);
   await page.goto("/");
   await page
     .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "A busca ainda não inclui toda a base.",
@@ -196,9 +230,13 @@ test("layout da consulta e detalhe no celular", async ({ page }) => {
     }),
   );
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await mockUnits(page);
   await page.goto("/");
   await page
     .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
     .click();
   await expect(page.locator(".everest-record")).toHaveCount(2);
   await page.screenshot({
@@ -229,4 +267,122 @@ test("layout da consulta e detalhe no celular", async ({ page }) => {
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("livros isolam fichas pelos itens da unidade e voltar permite trocar de livro", async ({
+  page,
+}) => {
+  await login(page);
+  await page.route("**/api/everest?**", (route) =>
+    route.fulfill({
+      json: {
+        records: [
+          record,
+          { ...record, id: 30, itemId: 24, name: "RECEITA MADONNA" },
+        ],
+        page: 1,
+        totalPages: 1,
+        environment: "production",
+        fetchedAt: "2026-09-16T14:00:00Z",
+      },
+    }),
+  );
+  await mockUnits(page);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await expect(page.locator(".everest-unit-book")).toHaveCount(2);
+  await page.screenshot({
+    path: "test-results/unit-books-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "test-results/unit-books-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
+    .click();
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await expect(page.locator(".everest-record")).toContainText("MASSA FRESCA");
+  await page.getByRole("button", { name: "Livros por unidade" }).click();
+  await page.getByLabel("Buscar unidade").fill("madonna");
+  await expect(page.locator(".everest-unit-book")).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Abrir livro MADONNA CUCINA", exact: true })
+    .click();
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await expect(page.locator(".everest-record")).toContainText(
+    "RECEITA MADONNA",
+  );
+  await expect(
+    page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }),
+  ).toHaveCount(0);
+});
+test("não mostra fichas globais se os vínculos da unidade falharem", async ({
+  page,
+}) => {
+  await login(page);
+  await mockUnits(page);
+  await page.route(
+    (url: URL) => url.searchParams.get("kind") === "members",
+    (route) =>
+      route.fulfill({ status: 502, json: { error: "Falha nos vínculos" } }),
+  );
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("Falha nos vínculos");
+  await expect(page.locator(".everest-record")).toHaveCount(0);
+});
+
+test("lê todas as páginas de vínculos antes de filtrar o livro", async ({
+  page,
+}) => {
+  await login(page);
+  await mockUnits(page);
+  const seen: string[] = [];
+  await page.route("**/api/everest?**", async (route) => {
+    const url = new URL(route.request().url());
+    const kind = url.searchParams.get("kind");
+    if (kind === "units") return route.fallback();
+    seen.push(url.search);
+    const current = Number(url.searchParams.get("page"));
+    return route.fulfill({
+      json: {
+        records:
+          kind === "members"
+            ? [{ itemId: current === 1 ? 999 : 23 }]
+            : [record],
+        page: current,
+        totalPages: kind === "members" ? 2 : 1,
+        environment: "production",
+        fetchedAt: "2026-09-16T14:00:00Z",
+      },
+    });
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
+    .click();
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  expect(seen).toEqual([
+    "?kind=members&unit=1&page=1",
+    "?kind=members&unit=1&page=2",
+    "?page=1",
+  ]);
 });

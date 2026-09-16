@@ -3746,3 +3746,192 @@ select:focus {
     overflow: visible;
   }
 }
+
+/* Recipe books organized by Everest unit */
+.everest-book-back {
+  margin-bottom: 28px;
+}
+.everest-books-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  border-top: 1px solid var(--line, #e8e4de);
+  padding: 25px 0 30px;
+}
+.everest-books-toolbar > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #706b65;
+}
+.everest-books-toolbar .search {
+  max-width: 360px;
+}
+.everest-books {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 34px 28px;
+}
+.everest-unit-book {
+  background: transparent;
+  padding: 0;
+  border: 0;
+  text-align: left;
+  min-width: 0;
+  color: #25221e;
+}
+.everest-book-cover {
+  position: relative;
+  padding: 27px 24px 24px 32px;
+  aspect-ratio: 4 / 4.5;
+  background: #ff6500;
+  border-radius: 3px 13px 13px 3px;
+  box-shadow:
+    inset 7px 0 0 #00000010,
+    inset 9px 0 0 #ffffff30,
+    4px 5px 0 #ece5db,
+    8px 10px 20px #3627130c;
+  display: flex;
+  flex-direction: column;
+  transition:
+    transform 0.3s,
+    box-shadow 0.3s;
+  overflow: hidden;
+}
+.everest-book-cover::after {
+  content: "";
+  position: absolute;
+  width: 190px;
+  height: 190px;
+  border: 1px solid #ffffff40;
+  border-radius: 50%;
+  right: -85px;
+  bottom: 25px;
+  pointer-events: none;
+}
+.everest-unit-book.tone-1 .everest-book-cover {
+  background: #f2e9dc;
+}
+.everest-unit-book.tone-2 .everest-book-cover {
+  background: #252822;
+  color: #fff6e8;
+}
+.everest-unit-book:hover .everest-book-cover {
+  transform: translateY(-5px) rotate(-1deg);
+  box-shadow:
+    inset 7px 0 0 #00000010,
+    inset 9px 0 0 #ffffff30,
+    4px 5px 0 #ece5db,
+    10px 18px 28px #36271318;
+}
+.everest-unit-book:focus-visible {
+  outline: 2px solid #ff6500;
+  outline-offset: 8px;
+  border-radius: 8px;
+}
+.everest-book-top,
+.everest-book-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.everest-book-top {
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 18px;
+}
+.everest-book-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 26px 0;
+  position: relative;
+  z-index: 1;
+}
+.everest-book-title > span {
+  font-size: 9px;
+  letter-spacing: 2px;
+  opacity: 0.7;
+}
+.everest-book-title h2 {
+  font-family: "Playfair Display", serif;
+  font-size: clamp(21px, 2.2vw, 32px);
+  line-height: 1.18;
+  font-weight: 500;
+  margin: 14px 0 0;
+  overflow-wrap: anywhere;
+}
+.everest-book-bottom {
+  font-size: 8px;
+  letter-spacing: 1.3px;
+}
+.everest-book-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 3px 0;
+  font-size: 12px;
+  color: #79736a;
+}
+.everest-book-caption svg {
+  color: #ff6500;
+}
+@media (max-width: 1100px) {
+  .everest-books {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .everest-books-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .everest-books-toolbar .search {
+    max-width: none;
+  }
+  .everest-books {
+    gap: 26px 16px;
+  }
+  .everest-book-cover {
+    padding: 18px 13px 17px 20px;
+    aspect-ratio: auto;
+    min-height: 250px;
+  }
+  .everest-book-title h2 {
+    font-size: 20px;
+  }
+  .everest-book-top {
+    font-size: 8px;
+    letter-spacing: 1px;
+  }
+  .everest-book-top svg {
+    width: 17px;
+  }
+  .everest-book-title > span {
+    font-size: 7px;
+    letter-spacing: 1px;
+  }
+  .everest-book-bottom {
+    font-size: 7px;
+    letter-spacing: 0.4px;
+  }
+  .everest-book-caption {
+    font-size: 10px;
+    gap: 4px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .everest-book-cover {
+    transition: none;
+  }
+  .everest-unit-book:hover .everest-book-cover {
+    transform: none;
+  }
+}

@@ -116,7 +116,13 @@ test("requisição autorizada, parâmetros restritos e cache privado", async () 
   });
   const r = await invoke(handler);
   assert.equal(r.status, 200);
-  assert.deepEqual(passed, { page: 1, id: undefined, refresh: false });
+  assert.deepEqual(passed, {
+    page: 1,
+    id: undefined,
+    refresh: false,
+    kind: "recipes",
+    unit: undefined,
+  });
   assert.equal(r.headers["Cache-Control"], "private, no-store");
   for (const url of [
     "/api/everest?id=../secrets",
@@ -124,6 +130,11 @@ test("requisição autorizada, parâmetros restritos e cache privado", async () 
     "/api/everest?page=101",
     "/api/everest?url=https://evil.example",
     "/api/everest?entity=other",
+    "/api/everest?kind=members",
+    "/api/everest?kind=members&unit=../3",
+    "/api/everest?kind=units&id=12",
+    "/api/everest?kind=unknown",
+    "/api/everest?unit=1",
   ])
     assert.equal((await invoke(handler, { url })).status, 400);
 });
@@ -178,4 +189,70 @@ test("erros externos não expõem credenciais nem respostas do fornecedor", asyn
   const result = await invoke(handler);
   assert.equal(result.status, 502);
   assert.ok(!JSON.stringify(result).includes("test-password"));
+});
+
+test("unidades expõem somente código e nome; vínculos e cache são separados por empresa", async () => {
+  const seen = [];
+  const upstream = createUpstream({
+    env,
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      seen.push(url.toString());
+      if (url.pathname === "/api/sis/empresa")
+        return Response.json(
+          [
+            {
+              cd_empresa: 3,
+              fantasia: "MADONNA",
+              senha_esupri: "secret",
+              cpf_cnpj: "private",
+            },
+          ],
+          { headers: { "x-paginas": "1" } },
+        );
+      assert.equal(url.pathname, "/api/adm/itemempresa");
+      const unit = Number(url.searchParams.get("cd_empresa"));
+      return Response.json(
+        [{ cd_empresa: unit, id_item: unit === 3 ? 24 : 23 }],
+        { headers: { "x-paginas": "2" } },
+      );
+    },
+  });
+  assert.deepEqual((await upstream({ kind: "units", page: 1 })).records, [
+    { id: 3, name: "MADONNA" },
+  ]);
+  assert.deepEqual(
+    (await upstream({ kind: "members", unit: 1, page: 1 })).records,
+    [{ itemId: 23 }],
+  );
+  assert.deepEqual(
+    (await upstream({ kind: "members", unit: 3, page: 1 })).records,
+    [{ itemId: 24 }],
+  );
+  await upstream({ kind: "members", unit: 1, page: 1 });
+  assert.equal(seen.length, 3);
+  await upstream({ kind: "members", unit: 1, page: 2 });
+  assert.equal(seen.length, 4);
+});
+test("rejeita vínculos retornados para outra unidade e aceita unidade sem itens", async () => {
+  const upstream = createUpstream({
+    env,
+    sleep: async () => {},
+    fetchImpl: async () =>
+      Response.json([{ cd_empresa: 3, id_item: 24 }], {
+        headers: { "x-paginas": "1" },
+      }),
+  });
+  await assert.rejects(
+    upstream({ kind: "members", unit: 1, page: 1 }),
+    /invalid_membership/,
+  );
+  const empty = createUpstream({
+    env,
+    sleep: async () => {},
+    fetchImpl: async () => Response.json([], { headers: { "x-paginas": "0" } }),
+  });
+  const result = await empty({ kind: "members", unit: 1, page: 1 });
+  assert.deepEqual(result.records, []);
+  assert.equal(result.totalPages, 1);
 });

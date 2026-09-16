@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   ArrowLeft,
+  BookOpen,
+  Building2,
   ArrowRight,
   CheckCircle2,
   ClipboardList,
@@ -21,6 +23,8 @@ import type {
   EverestRecord,
   EverestDetail,
   EverestPage,
+  EverestUnit,
+  EverestCollection,
 } from "./everest-types";
 const numeric = (n: number | null) =>
   n === null
@@ -61,12 +65,16 @@ async function request<T>(
     throw new Error(data.error || "Não foi possível consultar as fichas.");
   return data;
 }
-export function Everest({
+function UnitRecipes({
   session,
   onLogin,
+  unit,
+  onBack,
 }: {
   session: Session | null;
   onLogin: () => void;
+  unit?: EverestUnit;
+  onBack?: () => void;
 }) {
   const [records, setRecords] = useState<EverestRecord[]>([]),
     [loading, setLoading] = useState(false),
@@ -74,6 +82,7 @@ export function Everest({
     [progress, setProgress] = useState({ page: 0, total: 0 }),
     [updated, setUpdated] = useState(""),
     [environment, setEnvironment] = useState("production");
+  const [phase, setPhase] = useState("fichas");
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState("all"),
     [page, setPage] = useState(1);
@@ -94,6 +103,41 @@ export function Everest({
     setUpdated("");
     setPage(1);
     try {
+      const members = new Set<number>();
+      if (unit) {
+        setPhase("vínculos da unidade");
+        let totalMembers = 1;
+        for (let current = 1; current <= totalMembers; current++) {
+          const params = new URLSearchParams({
+            kind: "members",
+            unit: String(unit.id),
+            page: String(current),
+          });
+          if (refresh) params.set("refresh", "1");
+          const data = await request<EverestCollection<{ itemId: number }>>(
+            params,
+            controller.signal,
+          );
+          if (controller.signal.aborted) return;
+          if (
+            !Array.isArray(data.records) ||
+            !Number.isSafeInteger(data.totalPages) ||
+            data.totalPages < 1 ||
+            data.totalPages > 100
+          )
+            throw new Error(
+              "Os vínculos da unidade retornaram uma lista inválida.",
+            );
+          totalMembers = data.totalPages;
+          data.records.forEach((r) => members.add(r.itemId));
+          setProgress({ page: current, total: totalMembers });
+          if (current < totalMembers)
+            await new Promise((resolve) => setTimeout(resolve, 1100));
+          if (controller.signal.aborted) return;
+        }
+      }
+      setPhase("fichas");
+      setProgress({ page: 0, total: 0 });
       let total = 1;
       const rows = new Map<number, EverestRecord>();
       for (let current = 1; current <= total; current++) {
@@ -111,7 +155,9 @@ export function Everest({
             "O Everest retornou uma lista inválida. Tente novamente.",
           );
         total = data.totalPages;
-        for (const r of data.records) rows.set(r.id, r);
+        for (const r of data.records)
+          if (!unit || (r.itemId !== null && members.has(r.itemId)))
+            rows.set(r.id, r);
         setRecords([...rows.values()]);
         setProgress({ page: current, total });
         setEnvironment(data.environment);
@@ -158,12 +204,12 @@ export function Everest({
     setDetail(null);
   }
   useEffect(() => {
-    if (session) void load();
+    if (session && unit) void load();
     return () => {
       listController.current?.abort();
       detailController.current?.abort();
     };
-  }, [session?.user.id]);
+  }, [session?.user.id, unit?.id]);
   const filtered = records
     .filter(
       (r) =>
@@ -176,16 +222,29 @@ export function Everest({
     visible = filtered.slice((currentPage - 1) * 24, currentPage * 24);
   return (
     <section className="everest-page">
+      {unit && (
+        <button className="everest-book-back secondary" onClick={onBack}>
+          <ArrowLeft size={16} /> Livros por unidade
+        </button>
+      )}
       <div className="page-heading">
         <div>
           <div className="eyebrow">
             <span /> FICHAS TÉCNICAS · EVEREST
           </div>
           <h1>
-            Sua operação, <em>em detalhe.</em>
+            {unit ? (
+              unit.name
+            ) : (
+              <>
+                Sua operação, <em>em detalhe.</em>
+              </>
+            )}
           </h1>
           <p>
-            Composição, rendimento e preparo. Os dados da sua cozinha, reunidos.
+            {unit
+              ? `Livro de receitas · Unidade ${unit.id} · Everest`
+              : "Composição, rendimento e preparo. Os dados da sua cozinha, reunidos."}
           </p>
         </div>
         {session && (
@@ -239,8 +298,8 @@ export function Everest({
                   <LoaderCircle size={13} className="spin" />
                   Carregando{" "}
                   {progress.total
-                    ? `${progress.page} de ${progress.total} páginas`
-                    : "fichas…"}
+                    ? `${phase}: ${progress.page} de ${progress.total} páginas`
+                    : `${phase}…`}
                 </>
               ) : error ? (
                 "Consulta interrompida"
@@ -458,8 +517,9 @@ export function Everest({
             </div>
           )}
           <p className="everest-footnote">
-            Fichas consultadas no Everest. Para alterar o cadastro de origem,
-            utilize o Everest.
+            Fichas dos itens vinculados a esta unidade no Everest. Itens
+            compartilhados podem aparecer em mais de um livro. Para alterar o
+            cadastro de origem, utilize o Everest.
           </p>
         </>
       )}
@@ -470,7 +530,8 @@ export function Everest({
               <div className="eyebrow">FICHA TÉCNICA · EVEREST</div>
               <h2>{selected.name}</h2>
               <p className="everest-detail-code">
-                Código {selected.code || "—"} · Ficha #{selected.id}
+                {unit?.name} · Código {selected.code || "—"} · Ficha #
+                {selected.id}
               </p>
               {detailLoading ? (
                 <div className="empty">
@@ -616,6 +677,195 @@ export function Everest({
           </Modal>,
           document.body,
         )}
+    </section>
+  );
+}
+
+export function Everest({
+  session,
+  onLogin,
+}: {
+  session: Session | null;
+  onLogin: () => void;
+}) {
+  const [units, setUnits] = useState<EverestUnit[]>([]);
+  const [selectedUnit, setSelectedUnit] = useState<EverestUnit | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const controllerRef = useRef<AbortController | null>(null);
+  async function loadUnits(refresh = false) {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setLoading(true);
+    setError("");
+    setUnits([]);
+    try {
+      let total = 1;
+      const all = new Map<number, EverestUnit>();
+      for (let page = 1; page <= total; page++) {
+        const params = new URLSearchParams({
+          kind: "units",
+          page: String(page),
+        });
+        if (refresh) params.set("refresh", "1");
+        const data = await request<EverestCollection<EverestUnit>>(
+          params,
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        if (
+          !Array.isArray(data.records) ||
+          !Number.isSafeInteger(data.totalPages) ||
+          data.totalPages < 1 ||
+          data.totalPages > 100
+        )
+          throw new Error("A lista de unidades não pôde ser validada.");
+        total = data.totalPages;
+        data.records.forEach((u) => all.set(u.id, u));
+        setUnits(
+          [...all.values()].sort((a, b) =>
+            a.name.localeCompare(b.name, "pt-BR"),
+          ),
+        );
+        if (page < total)
+          await new Promise((resolve) => setTimeout(resolve, 1100));
+        if (controller.signal.aborted) return;
+      }
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Não foi possível consultar as unidades.",
+        );
+    } finally {
+      if (!controller.signal.aborted) setLoading(false);
+    }
+  }
+  useEffect(() => {
+    if (session) void loadUnits();
+    return () => controllerRef.current?.abort();
+  }, [session?.user.id]);
+  if (!session) return <UnitRecipes session={null} onLogin={onLogin} />;
+  if (selectedUnit)
+    return (
+      <UnitRecipes
+        key={selectedUnit.id}
+        session={session}
+        onLogin={onLogin}
+        unit={selectedUnit}
+        onBack={() => setSelectedUnit(null)}
+      />
+    );
+  const visible = units.filter((u) =>
+    searchText(`${u.name} ${u.id}`).includes(searchText(query)),
+  );
+  return (
+    <section className="everest-page">
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">
+            <span /> FICHAS TÉCNICAS · EVEREST
+          </div>
+          <h1>
+            Cada unidade,
+            <br />
+            <em>seu livro.</em>
+          </h1>
+          <p>Escolha uma unidade para abrir suas receitas e fichas técnicas.</p>
+        </div>
+        <button
+          className="secondary"
+          disabled={loading}
+          onClick={() => loadUnits(true)}
+        >
+          <RefreshCw size={16} className={loading ? "spin" : ""} /> Atualizar
+          unidades
+        </button>
+      </div>
+      <div className="everest-books-toolbar">
+        <span>
+          <Building2 size={18} /> {units.length} unidades{" "}
+          {loading || error ? "carregadas" : "na sua biblioteca"}
+        </span>
+        <label className="search">
+          <Search size={17} />
+          <input
+            aria-label="Buscar unidade"
+            placeholder="Encontre sua unidade…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+      </div>
+      {error && (
+        <div className="everest-error" role="alert">
+          <div>
+            <strong>Não foi possível carregar todas as unidades.</strong>
+            <p>{error}</p>
+          </div>
+          <button className="secondary" onClick={() => loadUnits(true)}>
+            Tentar novamente
+          </button>
+        </div>
+      )}
+      {loading && !units.length ? (
+        <div className="empty">
+          <LoaderCircle className="spin" />
+          <h3>Preparando sua biblioteca…</h3>
+        </div>
+      ) : (
+        <div className="everest-books">
+          {visible.map((unit, index) => (
+            <button
+              key={unit.id}
+              className={`everest-unit-book tone-${index % 3}`}
+              aria-label={`Abrir livro ${unit.name}`}
+              onClick={() => setSelectedUnit(unit)}
+            >
+              <div className="everest-book-cover">
+                <div className="everest-book-top">
+                  <span>LE CHEF</span>
+                  <BookOpen size={22} />
+                </div>
+                <div className="everest-book-title">
+                  <span>LIVRO DE RECEITAS</span>
+                  <h2>{unit.name}</h2>
+                </div>
+                <div className="everest-book-bottom">
+                  <span>UNIDADE {String(unit.id).padStart(2, "0")}</span>
+                  <span>EVEREST</span>
+                </div>
+              </div>
+              <div className="everest-book-caption">
+                <span>Explorar fichas técnicas</span>
+                <ArrowRight size={18} />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {!loading && !error && !visible.length && (
+        <div className="empty">
+          <BookOpen />
+          <h3>
+            {query
+              ? "Nenhuma unidade encontrada"
+              : "Nenhuma unidade cadastrada"}
+          </h3>
+          <p>
+            {query
+              ? "Tente outro nome ou código."
+              : "As unidades aparecerão aqui conforme o cadastro no Everest."}
+          </p>
+        </div>
+      )}
+      <p className="everest-footnote">
+        Um livro para cada unidade do Everest. As fichas são organizadas pelos
+        vínculos dos itens no cadastro de origem.
+      </p>
     </section>
   );
 }
