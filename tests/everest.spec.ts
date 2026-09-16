@@ -396,3 +396,81 @@ test("lê todas as páginas de vínculos antes de filtrar o livro", async ({
     "?page=1",
   ]);
 });
+
+test("explica preparo com estoque zerado e alerta ingredientes sem custo na origem", async ({
+  page,
+}) => {
+  await login(page);
+  await page.route("**/api/everest?**", (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.has("id"))
+      return route.fulfill({
+        json: {
+          record: {
+            ...detail,
+            costStatus: "review",
+            costAudit: {
+              sourceTotal: 0,
+              difference: 5,
+              zeroCostItems: ["Ingrediente sem custo"],
+              missingCostItems: [],
+              stocklessCostItems: [],
+            },
+            components: [
+              {
+                ...detail.components[0],
+                costBasis: "composition",
+                stockUnitCost: 0,
+              },
+            ],
+          },
+        },
+      });
+    return route.fulfill({
+      json: {
+        records: [record],
+        page: 1,
+        totalPages: 1,
+        environment: "production",
+        fetchedAt: "2026-09-16T14:00:00Z",
+      },
+    });
+  });
+  await mockUnits(page);
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Ficha técnica", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
+  await expect(page.locator(".everest-cost-summary")).toContainText(
+    "Total calculado · conferir",
+  );
+  await expect(page.getByRole("dialog")).toContainText(
+    "Calculado pelos ingredientes",
+  );
+  await expect(page.locator(".everest-money").first()).toContainText("20,00");
+  await page.getByText("Conferência dos custos", { exact: true }).click();
+  await expect(page.locator(".everest-cost-audit")).toContainText(
+    "Ingrediente sem custo",
+  );
+  await expect(page.locator(".everest-cost-audit")).toContainText(
+    "Diferença de",
+  );
+  await page.screenshot({
+    path: "test-results/cost-audit-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "test-results/cost-audit-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+});

@@ -6,9 +6,8 @@ const bases = {
 };
 const text = (value) => (typeof value === "string" ? value : "");
 const number = (value) =>
-  value !== null &&
-  value !== undefined &&
-  value !== "" &&
+  (typeof value === "number" ||
+    (typeof value === "string" && value.trim() !== "")) &&
   Number.isFinite(Number(value))
     ? Number(value)
     : null;
@@ -52,6 +51,7 @@ export function normalizeFicha(raw, detail = false) {
       costStatus: "unavailable",
       totalCost: null,
       costPerKg: null,
+      costAudit: null,
       components: components.map((i) => ({
         itemId: number(i.id_item),
         code: text(i.cd_item),
@@ -63,63 +63,141 @@ export function normalizeFicha(raw, detail = false) {
         type: number(i.at_tipo_componente),
         unitCost: null,
         appliedCost: null,
+        stockUnitCost: null,
+        costBasis: "unmatched",
       })),
     });
   return record;
 }
 export function attachCosts(record, raw) {
   if (!Array.isArray(raw)) return record;
-  const root = raw.find(
+  const roots = raw.filter(
     (r) =>
-      Number(r.id_composto) === record.itemId &&
-      Number(r.id_ordem) === Number(r.id_ordem_pai),
+      number(r.id_composto) === record.itemId &&
+      positiveId(r.id_ordem) &&
+      number(r.id_ordem) === number(r.id_ordem_pai),
   );
-  if (!root) return record;
+  if (roots.length !== 1) return record;
+  const root = roots[0];
   if (
-    Number(root.id_ficha) !== record.id ||
+    number(root.id_ficha) !== record.id ||
     number(root.qt_producao) !== record.quantity
-  ) {
+  )
     return { ...record, costStatus: "version_mismatch" };
+  const movement = number(root.qt_utilizada);
+  if (!(movement > 0) || !(record.quantity > 0)) return record;
+  const scale = record.quantity / movement;
+  const nodes = new Map(),
+    branches = new Map();
+  for (const node of raw) {
+    const id = number(node.id_ordem),
+      parent = number(node.id_ordem_pai);
+    if (!positiveId(id) || !positiveId(parent) || nodes.has(id)) return record;
+    nodes.set(id, node);
+    if (id !== parent)
+      branches.set(parent, [...(branches.get(parent) || []), node]);
   }
-  const children = raw.filter(
-    (r) =>
-      Number(r.id_ordem_pai) === Number(root.id_ordem) &&
-      Number(r.id_ordem) !== Number(root.id_ordem),
-  );
+  const reached = new Set(),
+    zeroCosts = new Set(),
+    missingCosts = new Set(),
+    stocklessCosts = new Set();
+  function sumBranch(node, path = new Set()) {
+    const id = number(node.id_ordem);
+    const name = text(node.desc_item) || `Item ${node.id_composto}`;
+    if (path.has(id) || path.size > 100) {
+      missingCosts.add(name);
+      return null;
+    }
+    reached.add(id);
+    const children = branches.get(id) || [];
+    if (children.length) {
+      const next = new Set(path);
+      next.add(id);
+      const values = children.map((child) => sumBranch(child, next));
+      return values.some((v) => v === null)
+        ? null
+        : values.reduce((a, b) => a + b, 0);
+    }
+    // A declared preparation without its ingredients cannot be priced as a raw ingredient.
+    const contribution = number(node.custo_unitario);
+    if (
+      node.tem_composicao === "S" ||
+      contribution === null ||
+      contribution < 0
+    ) {
+      missingCosts.add(name);
+      return null;
+    }
+    if (contribution === 0 && number(node.qt_utilizada) > 0)
+      zeroCosts.add(name);
+    if (contribution > 0 && !(number(node.custo_medio) > 0))
+      stocklessCosts.add(name);
+    return contribution * scale;
+  }
+  const children = branches.get(number(root.id_ordem)) || [];
   const used = new Set();
   const components = record.components.map((component) => {
     const index = children.findIndex(
       (row, i) =>
         !used.has(i) &&
-        Number(row.id_composto) === component.itemId &&
+        number(row.id_composto) === component.itemId &&
         text(row.unidade).trim().toUpperCase() ===
           component.unit.trim().toUpperCase() &&
         number(row.qt_aplicada) !== null &&
         component.quantity !== null &&
         Math.abs(Number(row.qt_aplicada) - component.quantity) < 0.000001,
     );
-    if (index < 0) return component;
+    if (index < 0) {
+      missingCosts.add(component.name);
+      return component;
+    }
     used.add(index);
+    const row = children[index];
+    const appliedCost = sumBranch(row);
+    const unitCost =
+      appliedCost !== null && component.quantity > 0
+        ? appliedCost / component.quantity
+        : null;
     return {
       ...component,
-      unitCost: number(children[index].custo_medio),
-      appliedCost: number(children[index].vl_custo_producao),
+      unitCost,
+      appliedCost,
+      stockUnitCost: number(row.custo_medio),
+      costBasis: branches.has(number(row.id_ordem)) ? "composition" : "everest",
     };
   });
   const complete =
     components.length > 0 &&
     used.size === children.length &&
+    reached.size === nodes.size - 1 &&
     components.every((c) => c.unitCost !== null && c.appliedCost !== null);
-  const totalCost = complete ? number(root.vl_custo_producao) : null;
+  const totalCost = complete
+    ? components.reduce((sum, c) => sum + c.appliedCost, 0)
+    : null;
+  const sourceTotal = number(root.vl_custo_producao);
   return {
     ...record,
     components,
     totalCost,
-    costStatus: complete && totalCost !== null ? "available" : "partial",
+    costStatus: !complete
+      ? "partial"
+      : zeroCosts.size || stocklessCosts.size
+        ? "review"
+        : "available",
     costPerKg:
       totalCost !== null && record.yieldKg > 0
         ? totalCost / record.yieldKg
         : null,
+    costAudit: {
+      sourceTotal,
+      difference:
+        totalCost !== null && sourceTotal !== null
+          ? totalCost - sourceTotal
+          : null,
+      zeroCostItems: [...zeroCosts],
+      missingCostItems: [...missingCosts],
+      stocklessCostItems: [...stocklessCosts],
+    },
   };
 }
 export function createUpstream({

@@ -277,6 +277,7 @@ const costTree = [
     id_composto: 23,
     id_ficha: "12",
     qt_producao: 0.5,
+    qt_utilizada: 1,
     vl_custo_producao: 5,
   },
   {
@@ -286,6 +287,8 @@ const costTree = [
     unidade: "KG  ",
     qt_aplicada: 0.25,
     custo_medio: 20,
+    qt_utilizada: 0.5,
+    custo_unitario: 10,
     vl_custo_producao: 5,
   },
   {
@@ -295,6 +298,8 @@ const costTree = [
     unidade: "KG",
     qt_aplicada: 0.1,
     custo_medio: 50,
+    qt_utilizada: 0.2,
+    custo_unitario: 10,
     vl_custo_producao: 5,
   },
 ];
@@ -312,15 +317,20 @@ test("custos usam somente componentes diretos, total Everest e rendimento kg", (
   assert.equal(un.costPerKg, null);
   const zero = attachCosts(
     normalizeFicha(raw, true),
-    costTree.map((r) => ({ ...r, custo_medio: 0, vl_custo_producao: 0 })),
+    costTree.map((r) => ({
+      ...r,
+      custo_medio: 0,
+      custo_unitario: 0,
+      vl_custo_producao: 0,
+    })),
   );
-  assert.equal(zero.costStatus, "available");
+  assert.equal(zero.costStatus, "review");
   assert.equal(zero.totalCost, 0);
 });
 test("custos ausentes e versões diferentes não viram zero nem total incorreto", () => {
   const missing = attachCosts(
     normalizeFicha(raw, true),
-    costTree.map((r) => ({ ...r, custo_medio: null })),
+    costTree.map((r) => ({ ...r, custo_unitario: null })),
   );
   assert.equal(missing.costStatus, "partial");
   assert.equal(missing.totalCost, null);
@@ -346,6 +356,7 @@ test("consulta e cache de custos são separados por unidade", async () => {
         costTree.map((r) => ({
           ...r,
           custo_medio: unit * 20,
+          custo_unitario: unit * 10,
           vl_custo_producao: unit * 5,
         })),
       );
@@ -369,4 +380,138 @@ test("falha da consulta de custo preserva composição sem inventar preços", as
   assert.equal(result.record.components[0].name, "Farinha");
   assert.equal(result.record.totalCost, null);
   assert.equal(result.record.costStatus, "unavailable");
+});
+
+test("preparos de vários níveis: usa custos dos ingredientes e não custo de estoque ou lote completo", () => {
+  const ficha = normalizeFicha(
+    {
+      ...raw,
+      qt_producao: 2,
+      itens: [
+        { id_item: 7, sg_unidademedida: "KG", qt_aplicada: 0.4 },
+        { id_item: 8, sg_unidademedida: "KG", qt_aplicada: 0.5 },
+      ],
+    },
+    true,
+  );
+  const tree = [
+    {
+      id_ordem: 1,
+      id_ordem_pai: 1,
+      id_composto: 23,
+      id_ficha: 12,
+      qt_producao: 2,
+      qt_utilizada: 1,
+      custo_unitario: 3,
+      vl_custo_producao: 6,
+    },
+    {
+      id_ordem: 2,
+      id_ordem_pai: 1,
+      id_composto: 7,
+      unidade: "KG",
+      qt_aplicada: 0.4,
+      qt_utilizada: 0.2,
+      custo_medio: 15,
+      custo_unitario: 3,
+    },
+    {
+      id_ordem: 3,
+      id_ordem_pai: 1,
+      id_composto: 8,
+      unidade: "KG",
+      qt_aplicada: 0.5,
+      qt_utilizada: 0.25,
+      custo_medio: 0,
+      custo_unitario: 10,
+      vl_custo_producao: 500,
+      tem_composicao: "S",
+    },
+    {
+      id_ordem: 4,
+      id_ordem_pai: 3,
+      id_composto: 9,
+      qt_utilizada: 0.5,
+      custo_medio: 20,
+      custo_unitario: 10,
+    },
+    {
+      id_ordem: 5,
+      id_ordem_pai: 3,
+      id_composto: 10,
+      qt_utilizada: 0.1,
+      custo_medio: 0,
+      custo_unitario: 1,
+      tem_composicao: "S",
+    },
+    {
+      id_ordem: 6,
+      id_ordem_pai: 5,
+      id_composto: 11,
+      qt_utilizada: 0.1,
+      custo_medio: 10,
+      custo_unitario: 1,
+    },
+    {
+      id_ordem: 7,
+      id_ordem_pai: 5,
+      id_composto: 12,
+      qt_utilizada: 0.1,
+      custo_medio: 20,
+      custo_unitario: 2,
+    },
+  ];
+  const result = attachCosts(ficha, tree);
+  assert.equal(result.totalCost, 32);
+  assert.equal(result.costPerKg, 16);
+  assert.equal(result.components[0].appliedCost, 6);
+  assert.equal(result.components[1].appliedCost, 26);
+  assert.equal(result.components[1].unitCost, 52);
+  assert.equal(result.components[1].stockUnitCost, 0);
+  assert.equal(result.costStatus, "available");
+  assert.equal(result.costAudit.sourceTotal, 6);
+  assert.equal(result.costAudit.difference, 26);
+  const incomplete = attachCosts(
+    ficha,
+    tree.filter((r) => ![6, 7].includes(r.id_ordem)),
+  );
+  assert.equal(incomplete.totalCost, null);
+  assert.equal(incomplete.costStatus, "partial");
+});
+test("custo aplicado positivo sem custo médio gera valor coerente e indicação de conferência", () => {
+  const tree = costTree.map((r) => ({ ...r, custo_medio: null }));
+  const result = attachCosts(normalizeFicha(raw, true), tree);
+  assert.equal(result.totalCost, 5);
+  assert.equal(result.components[0].unitCost, 20);
+  assert.equal(result.costStatus, "review");
+  assert.equal(result.costAudit.stocklessCostItems.length, 1);
+});
+test("árvore inválida ou desconectada nunca produz total completo", () => {
+  const ficha = normalizeFicha(raw, true);
+  assert.equal(attachCosts(ficha, [...costTree, costTree[1]]).totalCost, null);
+  assert.equal(
+    attachCosts(ficha, [
+      ...costTree,
+      { id_ordem: 99, id_ordem_pai: 88, id_composto: 90, custo_unitario: 10 },
+    ]).costStatus,
+    "partial",
+  );
+  assert.equal(
+    attachCosts(
+      ficha,
+      costTree.map((r) => ({ ...r, qt_utilizada: 0 })),
+    ).totalCost,
+    null,
+  );
+});
+
+test("valores vazios ou booleanos não são convertidos em custo zero", () => {
+  for (const value of [" ", false, true]) {
+    const result = attachCosts(
+      normalizeFicha(raw, true),
+      costTree.map((r) => ({ ...r, custo_unitario: value })),
+    );
+    assert.equal(result.totalCost, null);
+    assert.equal(result.costStatus, "partial");
+  }
 });

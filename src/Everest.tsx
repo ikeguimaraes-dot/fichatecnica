@@ -612,7 +612,11 @@ function UnitRecipes({
                     )}
                     <div className="everest-cost-summary">
                       <div>
-                        <span>Custo total da ficha</span>
+                        <span>
+                          {detail.costStatus === "review"
+                            ? "Total calculado · conferir"
+                            : "Custo total da ficha"}
+                        </span>
                         <strong>{money(detail.totalCost)}</strong>
                         <small>Para o rendimento desta receita</small>
                       </div>
@@ -627,9 +631,11 @@ function UnitRecipes({
                         <p>
                           {detail.costStatus === "version_mismatch"
                             ? "O Everest retornou custos de outra versão. Os preços desta ficha não puderam ser confirmados."
-                            : detail.costStatus === "partial"
-                              ? "Alguns custos não foram informados pelo Everest. O total fica pendente até a consulta estar completa."
-                              : "Não foi possível obter os custos desta unidade agora."}
+                            : detail.costStatus === "review"
+                              ? "Há ingredientes com custo zerado ou sem custo médio de estoque no Everest. Confira os itens abaixo: o total usa apenas os custos disponíveis na origem."
+                              : detail.costStatus === "partial"
+                                ? "Alguns custos não foram informados pelo Everest. O total fica pendente até a consulta estar completa."
+                                : "Não foi possível obter os custos desta unidade agora."}
                         </p>
                         <button
                           className="secondary"
@@ -651,7 +657,7 @@ function UnitRecipes({
                             <th>Quantidade</th>
                             <th>Unidade</th>
                             <th>Aproveitamento</th>
-                            <th>Preço / unidade</th>
+                            <th>Custo aplicado / unidade</th>
                             <th>Custo na receita</th>
                           </tr>
                         </thead>
@@ -662,6 +668,9 @@ function UnitRecipes({
                                 <strong>{i.name}</strong>
                                 <small>
                                   {i.code}
+                                  {i.costBasis === "composition"
+                                    ? " · Preparo composto"
+                                    : ""}
                                   {i.type === 280 ? " · Embalagem" : ""}
                                 </small>
                               </td>
@@ -676,7 +685,7 @@ function UnitRecipes({
                               </td>
                               <td
                                 className="everest-money"
-                                data-label="Preço / unidade"
+                                data-label="Custo aplicado / unidade"
                               >
                                 {money(i.unitCost, 4)}
                                 <small>
@@ -684,6 +693,17 @@ function UnitRecipes({
                                     ? `por ${i.unit.trim().toLowerCase() || "unidade"}`
                                     : ""}
                                 </small>
+                                {i.costBasis === "composition" && (
+                                  <small className="everest-cost-basis">
+                                    Calculado pelos ingredientes
+                                  </small>
+                                )}
+                                {i.appliedCost === 0 &&
+                                  (i.quantity || 0) > 0 && (
+                                    <small className="everest-cost-basis">
+                                      Custo zerado na origem
+                                    </small>
+                                  )}
                               </td>
                               <td
                                 className="everest-money"
@@ -702,10 +722,79 @@ function UnitRecipes({
                       )}
                     </div>
                     <p className="everest-cost-note">
-                      Preços baseados no custo médio do Everest para esta
-                      unidade. O custo na receita e o total seguem o cálculo do
-                      Everest; sub-receitas não são somadas duas vezes.
+                      Custo aplicado por unidade = custo na receita ÷ quantidade
+                      usada. Preparos são calculados pelos seus ingredientes,
+                      incluindo os preparos internos. O total soma os custos da
+                      receita uma única vez. Os valores usam os dados do Everest
+                      desta unidade.
                     </p>
+                    {detail.costAudit && (
+                      <details className="everest-cost-audit">
+                        <summary>Conferência dos custos</summary>
+                        <p>
+                          O custo aplicado pode diferir do custo médio de
+                          estoque, especialmente em preparos produzidos na
+                          cozinha. Ele considera os custos dos ingredientes e as
+                          quantidades da composição retornada pelo Everest.
+                        </p>
+                        <dl>
+                          <div>
+                            <dt>Soma dos itens desta receita</dt>
+                            <dd>{money(detail.totalCost, 4)}</dd>
+                          </div>
+                          <div>
+                            <dt>Total do cabeçalho Everest</dt>
+                            <dd>{money(detail.costAudit.sourceTotal, 4)}</dd>
+                          </div>
+                        </dl>
+                        {detail.costAudit.difference !== null &&
+                          Math.abs(detail.costAudit.difference) > 0.01 && (
+                            <p className="everest-audit-difference">
+                              Diferença de {money(detail.costAudit.difference)}{" "}
+                              em relação ao cabeçalho do Everest. O total
+                              exibido acima inclui todos os ingredientes dos
+                              preparos; o cabeçalho pode omitir esses níveis.
+                            </p>
+                          )}
+                        {detail.costAudit.zeroCostItems.length > 0 && (
+                          <>
+                            <h4>Ingredientes com custo zerado no Everest</h4>
+                            <p>
+                              Confirme os custos destes itens na unidade. O
+                              valor zero não confirma que o ingrediente é
+                              gratuito.
+                            </p>
+                            <ul>
+                              {detail.costAudit.zeroCostItems.map((name) => (
+                                <li key={name}>{name}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        {detail.costAudit.missingCostItems.length > 0 && (
+                          <>
+                            <h4>Custos que não puderam ser confirmados</h4>
+                            <ul>
+                              {detail.costAudit.missingCostItems.map((name) => (
+                                <li key={name}>{name}</li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        {detail.costAudit.stocklessCostItems.length > 0 && (
+                          <>
+                            <h4>Custo aplicado sem custo médio de estoque</h4>
+                            <ul>
+                              {detail.costAudit.stocklessCostItems.map(
+                                (name) => (
+                                  <li key={name}>{name}</li>
+                                ),
+                              )}
+                            </ul>
+                          </>
+                        )}
+                      </details>
+                    )}
                     <h3>Modo de preparo</h3>
                     <p
                       className={`everest-long-text ${detail.instructions ? "" : "everest-no-data"}`}

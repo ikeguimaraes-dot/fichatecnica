@@ -4051,3 +4051,44 @@ select:focus {
     color: #25221e;
   }
 }
+.everest-cost-basis {
+  max-width: 155px;
+  white-space: normal;
+  color: #9b5b2a !important;
+  font-size: 10px !important;
+}
+.everest-cost-audit {
+  border: 1px solid #eadfd2;
+  border-radius: 10px;
+  margin: 22px 0 30px;
+  padding: 18px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #736354;
+}
+.everest-cost-audit summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #40372f;
+}
+.everest-cost-audit dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid #eee6dc;
+}
+.everest-cost-audit dd {
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.everest-cost-audit h4 {
+  margin: 18px 0 6px;
+  color: #8f4b18;
+}
+.everest-audit-difference {
+  padding: 12px;
+  background: #fff4e9;
+  border-radius: 8px;
+}
