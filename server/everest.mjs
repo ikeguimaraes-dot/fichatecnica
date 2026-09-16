@@ -49,6 +49,9 @@ export function normalizeFicha(raw, detail = false) {
         .filter((v, i, a) => v && a.indexOf(v) === i)
         .join("\n\n"),
       shelfLifeDays: number(raw.dd_validade),
+      costStatus: "unavailable",
+      totalCost: null,
+      costPerKg: null,
       components: components.map((i) => ({
         itemId: number(i.id_item),
         code: text(i.cd_item),
@@ -58,9 +61,66 @@ export function normalizeFicha(raw, detail = false) {
         quantity: number(i.qt_aplicada),
         utilization: number(i.pr_aproveitamento),
         type: number(i.at_tipo_componente),
+        unitCost: null,
+        appliedCost: null,
       })),
     });
   return record;
+}
+export function attachCosts(record, raw) {
+  if (!Array.isArray(raw)) return record;
+  const root = raw.find(
+    (r) =>
+      Number(r.id_composto) === record.itemId &&
+      Number(r.id_ordem) === Number(r.id_ordem_pai),
+  );
+  if (!root) return record;
+  if (
+    Number(root.id_ficha) !== record.id ||
+    number(root.qt_producao) !== record.quantity
+  ) {
+    return { ...record, costStatus: "version_mismatch" };
+  }
+  const children = raw.filter(
+    (r) =>
+      Number(r.id_ordem_pai) === Number(root.id_ordem) &&
+      Number(r.id_ordem) !== Number(root.id_ordem),
+  );
+  const used = new Set();
+  const components = record.components.map((component) => {
+    const index = children.findIndex(
+      (row, i) =>
+        !used.has(i) &&
+        Number(row.id_composto) === component.itemId &&
+        text(row.unidade).trim().toUpperCase() ===
+          component.unit.trim().toUpperCase() &&
+        number(row.qt_aplicada) !== null &&
+        component.quantity !== null &&
+        Math.abs(Number(row.qt_aplicada) - component.quantity) < 0.000001,
+    );
+    if (index < 0) return component;
+    used.add(index);
+    return {
+      ...component,
+      unitCost: number(children[index].custo_medio),
+      appliedCost: number(children[index].vl_custo_producao),
+    };
+  });
+  const complete =
+    components.length > 0 &&
+    used.size === children.length &&
+    components.every((c) => c.unitCost !== null && c.appliedCost !== null);
+  const totalCost = complete ? number(root.vl_custo_producao) : null;
+  return {
+    ...record,
+    components,
+    totalCost,
+    costStatus: complete && totalCost !== null ? "available" : "partial",
+    costPerKg:
+      totalCost !== null && record.yieldKg > 0
+        ? totalCost / record.yieldKg
+        : null,
+  };
 }
 export function createUpstream({
   env = process.env,
@@ -86,36 +146,42 @@ export function createUpstream({
     if (kind === "members") url.searchParams.set("cd_empresa", String(unit));
     url.searchParams.set("x-Entidade", entity);
     if (!id) url.searchParams.set("x-Pagina", String(page));
-    const key = url.toString(),
+    const key = url.toString() + (id ? `#unit=${unit || "none"}` : ""),
       existing = cache.get(key);
     if (!refresh && existing && existing.expires > Date.now())
       return Promise.resolve(existing.value);
     const task = queue.then(async () => {
       // Serializes requests in each warm instance. A 412 from another instance is retried once.
-      let response;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        await sleep(Math.max(0, 1100 - (Date.now() - lastStart)));
-        lastStart = Date.now();
-        response = await fetchImpl(url, {
-          headers: {
-            Authorization:
-              "Basic " +
-              Buffer.from(
-                `${env.EVEREST_USERNAME}:${env.EVEREST_PASSWORD}`,
-              ).toString("base64"),
-            Accept: "application/json",
-          },
-          redirect: "error",
-          signal: AbortSignal.timeout(20000),
-        });
-        if (![412, 429].includes(response.status) || attempt === 1) break;
-        await response.text();
-        await sleep(1200);
+      async function readJson(target) {
+        let response;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await sleep(Math.max(0, 1100 - (Date.now() - lastStart)));
+          lastStart = Date.now();
+          response = await fetchImpl(target, {
+            headers: {
+              Authorization:
+                "Basic " +
+                Buffer.from(
+                  `${env.EVEREST_USERNAME}:${env.EVEREST_PASSWORD}`,
+                ).toString("base64"),
+              Accept: "application/json",
+            },
+            redirect: "error",
+            signal: AbortSignal.timeout(20000),
+          });
+          if (![412, 429].includes(response.status) || attempt === 1) break;
+          await response.text();
+          await sleep(1200);
+        }
+        if (response.status === 404) throw new Error("not_found");
+        if ([412, 429].includes(response.status)) throw new Error("rate_limit");
+        if (!response.ok) throw new Error("upstream");
+        return {
+          raw: await response.json(),
+          pagination: response.headers.get("x-paginas"),
+        };
       }
-      if (response.status === 404) throw new Error("not_found");
-      if ([412, 429].includes(response.status)) throw new Error("rate_limit");
-      if (!response.ok) throw new Error("upstream");
-      const raw = await response.json();
+      const { raw, pagination } = await readJson(url);
       let result;
       if (id) {
         const item = Array.isArray(raw)
@@ -124,9 +190,24 @@ export function createUpstream({
         if (!item) throw new Error("not_found");
         result = { record: normalizeFicha(item, true) };
         if (result.record.id !== id) throw new Error("upstream");
+        if (unit && result.record.itemId) {
+          const costUrl = new URL(
+            `/api/adm/fichatecnica/item/${result.record.itemId}`,
+            base,
+          );
+          costUrl.searchParams.set("x-Entidade", entity);
+          costUrl.searchParams.set("cd_empresa", String(unit));
+          try {
+            result.record = attachCosts(
+              result.record,
+              (await readJson(costUrl)).raw,
+            );
+          } catch {
+            /* Composition remains available if the cost service fails. */
+          }
+        }
       } else {
         if (!Array.isArray(raw)) throw new Error("invalid_response");
-        const pagination = response.headers.get("x-paginas");
         const totalPages =
           pagination === "0" && raw.length === 0 ? 1 : Number(pagination);
         if (
@@ -242,8 +323,11 @@ export function createHandler({
       if (
         !["recipes", "units", "members"].includes(kind) ||
         (kind !== "recipes" && url.searchParams.has("id")) ||
-        (kind === "members"
-          ? !unitText || !/^\d+$/.test(unitText) || !positiveId(unitText)
+        (kind === "members" ||
+        (kind === "recipes" && url.searchParams.has("id"))
+          ? (kind === "members" && !unitText) ||
+            (unitText !== null &&
+              (!/^\d+$/.test(unitText) || !positiveId(unitText)))
           : unitText !== null)
       )
         return send(400, { error: "Unidade ou consulta inválida." });

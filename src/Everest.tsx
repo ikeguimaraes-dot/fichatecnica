@@ -30,6 +30,15 @@ const numeric = (n: number | null) =>
   n === null
     ? "—"
     : new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 6 }).format(n);
+const money = (value: number | null | undefined, digits = 2) =>
+  value == null
+    ? "Não informado"
+    : new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: digits,
+      }).format(value);
 const date = (s: string) => {
   const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : "Não informada";
@@ -175,7 +184,7 @@ function UnitRecipes({
       if (!controller.signal.aborted) setLoading(false);
     }
   }
-  async function open(record: EverestRecord) {
+  async function open(record: EverestRecord, refresh = false) {
     detailController.current?.abort();
     const controller = new AbortController();
     detailController.current = controller;
@@ -185,7 +194,11 @@ function UnitRecipes({
     setDetailLoading(true);
     try {
       const result = await request<{ record: EverestDetail }>(
-        new URLSearchParams({ id: String(record.id) }),
+        new URLSearchParams({
+          id: String(record.id),
+          ...(unit ? { unit: String(unit.id) } : {}),
+          ...(refresh ? { refresh: "1" } : {}),
+        }),
         controller.signal,
       );
       if (!controller.signal.aborted) setDetail(result.record);
@@ -597,6 +610,35 @@ function UnitRecipes({
                         </p>
                       </div>
                     )}
+                    <div className="everest-cost-summary">
+                      <div>
+                        <span>Custo total da ficha</span>
+                        <strong>{money(detail.totalCost)}</strong>
+                        <small>Para o rendimento desta receita</small>
+                      </div>
+                      <div>
+                        <span>Custo por kg pronto</span>
+                        <strong>{money(detail.costPerKg)}</strong>
+                        <small>{unit?.name}</small>
+                      </div>
+                    </div>
+                    {detail.costStatus !== "available" && (
+                      <div className="everest-cost-warning" role="status">
+                        <p>
+                          {detail.costStatus === "version_mismatch"
+                            ? "O Everest retornou custos de outra versão. Os preços desta ficha não puderam ser confirmados."
+                            : detail.costStatus === "partial"
+                              ? "Alguns custos não foram informados pelo Everest. O total fica pendente até a consulta estar completa."
+                              : "Não foi possível obter os custos desta unidade agora."}
+                        </p>
+                        <button
+                          className="secondary"
+                          onClick={() => open(selected, true)}
+                        >
+                          <RefreshCw size={14} /> Consultar custos novamente
+                        </button>
+                      </div>
+                    )}
                     <div className="everest-composition-heading">
                       <h3>Composição da ficha</h3>
                       <span>{detail.components.length} itens</span>
@@ -609,6 +651,8 @@ function UnitRecipes({
                             <th>Quantidade</th>
                             <th>Unidade</th>
                             <th>Aproveitamento</th>
+                            <th>Preço / unidade</th>
+                            <th>Custo na receita</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -621,12 +665,31 @@ function UnitRecipes({
                                   {i.type === 280 ? " · Embalagem" : ""}
                                 </small>
                               </td>
-                              <td>{numeric(i.quantity)}</td>
-                              <td>{i.unit || "—"}</td>
-                              <td>
+                              <td data-label="Quantidade">
+                                {numeric(i.quantity)}
+                              </td>
+                              <td data-label="Unidade">{i.unit || "—"}</td>
+                              <td data-label="Aproveitamento">
                                 {i.utilization === null
                                   ? "—"
                                   : `${numeric(i.utilization)}%`}
+                              </td>
+                              <td
+                                className="everest-money"
+                                data-label="Preço / unidade"
+                              >
+                                {money(i.unitCost, 4)}
+                                <small>
+                                  {i.unitCost != null
+                                    ? `por ${i.unit.trim().toLowerCase() || "unidade"}`
+                                    : ""}
+                                </small>
+                              </td>
+                              <td
+                                className="everest-money"
+                                data-label="Custo na receita"
+                              >
+                                {money(i.appliedCost, 4)}
                               </td>
                             </tr>
                           ))}
@@ -639,7 +702,9 @@ function UnitRecipes({
                       )}
                     </div>
                     <p className="everest-cost-note">
-                      Custos não informados pelo Everest nesta consulta.
+                      Preços baseados no custo médio do Everest para esta
+                      unidade. O custo na receita e o total seguem o cálculo do
+                      Everest; sub-receitas não são somadas duas vezes.
                     </p>
                     <h3>Modo de preparo</h3>
                     <p

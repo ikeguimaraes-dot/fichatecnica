@@ -19,6 +19,9 @@ const detail = {
   instructions: "Misture e sove a massa.",
   notes: "Manter refrigerado.",
   shelfLifeDays: 2,
+  costStatus: "available",
+  totalCost: 5,
+  costPerKg: 10,
   components: [
     {
       itemId: 7,
@@ -29,6 +32,8 @@ const detail = {
       quantity: 0.25,
       utilization: 100,
       type: 281,
+      unitCost: 20,
+      appliedCost: 5,
     },
   ],
 };
@@ -158,6 +163,8 @@ test("lista todas as páginas, busca, detalhes e unidade preservada", async ({
   await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
   await expect(page.getByRole("dialog")).toContainText("0,5 kg");
   await expect(page.getByRole("dialog")).toContainText("Farinha");
+  await expect(page.locator(".everest-cost-summary")).toContainText("5,00");
+  await expect(page.locator(".everest-money").first()).toContainText("20,00");
   await expect(page.getByRole("dialog")).toContainText(
     "Misture e sove a massa.",
   );
@@ -165,6 +172,7 @@ test("lista todas as páginas, busca, detalhes e unidade preservada", async ({
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText("Farinha", { exact: true })).toBeVisible();
   await page.emulateMedia({ media: "screen" });
+  expect(seen).toContain("?id=12&unit=1");
   await page.getByLabel("Fechar janela").click();
   await page.getByLabel("Limpar busca de fichas").click();
   await page.getByLabel("Filtrar situação das fichas").selectOption("3");
@@ -257,6 +265,8 @@ test("layout da consulta e detalhe no celular", async ({ page }) => {
   ).toBe(true);
   await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
   await expect(page.getByRole("dialog")).toContainText("Farinha");
+  await expect(page.locator(".everest-cost-summary")).toContainText("5,00");
+  await expect(page.locator(".everest-money").first()).toContainText("20,00");
   await page.screenshot({
     path: "test-results/everest-detail-mobile.png",
     fullPage: true,

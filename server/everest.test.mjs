@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHandler, createUpstream, normalizeFicha } from "./everest.mjs";
+import {
+  attachCosts,
+  createHandler,
+  createUpstream,
+  normalizeFicha,
+} from "./everest.mjs";
 const raw = {
   id_fichatecnica: 12,
   id_item: 23,
@@ -124,6 +129,12 @@ test("requisição autorizada, parâmetros restritos e cache privado", async () 
     unit: undefined,
   });
   assert.equal(r.headers["Cache-Control"], "private, no-store");
+  assert.equal(
+    (await invoke(handler, { url: "/api/everest?id=12&unit=3" })).status,
+    200,
+  );
+  assert.equal(passed.unit, 3);
+  assert.equal(passed.id, 12);
   for (const url of [
     "/api/everest?id=../secrets",
     "/api/everest?page=0",
@@ -135,6 +146,8 @@ test("requisição autorizada, parâmetros restritos e cache privado", async () 
     "/api/everest?kind=units&id=12",
     "/api/everest?kind=unknown",
     "/api/everest?unit=1",
+    "/api/everest?id=12&unit=-1",
+    "/api/everest?id=12&unit=abc",
   ])
     assert.equal((await invoke(handler, { url })).status, 400);
 });
@@ -255,4 +268,105 @@ test("rejeita vínculos retornados para outra unidade e aceita unidade sem itens
   const result = await empty({ kind: "members", unit: 1, page: 1 });
   assert.deepEqual(result.records, []);
   assert.equal(result.totalPages, 1);
+});
+
+const costTree = [
+  {
+    id_ordem: 1,
+    id_ordem_pai: 1,
+    id_composto: 23,
+    id_ficha: "12",
+    qt_producao: 0.5,
+    vl_custo_producao: 5,
+  },
+  {
+    id_ordem: 2,
+    id_ordem_pai: 1,
+    id_composto: 7,
+    unidade: "KG  ",
+    qt_aplicada: 0.25,
+    custo_medio: 20,
+    vl_custo_producao: 5,
+  },
+  {
+    id_ordem: 3,
+    id_ordem_pai: 2,
+    id_composto: 99,
+    unidade: "KG",
+    qt_aplicada: 0.1,
+    custo_medio: 50,
+    vl_custo_producao: 5,
+  },
+];
+test("custos usam somente componentes diretos, total Everest e rendimento kg", () => {
+  const result = attachCosts(normalizeFicha(raw, true), costTree);
+  assert.equal(result.costStatus, "available");
+  assert.equal(result.totalCost, 5);
+  assert.equal(result.costPerKg, 10);
+  assert.equal(result.components[0].unitCost, 20);
+  assert.equal(result.components[0].appliedCost, 5);
+  const un = attachCosts(
+    normalizeFicha({ ...raw, sg_unidademedida: "UNID" }, true),
+    costTree,
+  );
+  assert.equal(un.costPerKg, null);
+  const zero = attachCosts(
+    normalizeFicha(raw, true),
+    costTree.map((r) => ({ ...r, custo_medio: 0, vl_custo_producao: 0 })),
+  );
+  assert.equal(zero.costStatus, "available");
+  assert.equal(zero.totalCost, 0);
+});
+test("custos ausentes e versões diferentes não viram zero nem total incorreto", () => {
+  const missing = attachCosts(
+    normalizeFicha(raw, true),
+    costTree.map((r) => ({ ...r, custo_medio: null })),
+  );
+  assert.equal(missing.costStatus, "partial");
+  assert.equal(missing.totalCost, null);
+  const mismatch = attachCosts(
+    normalizeFicha(raw, true),
+    costTree.map((r) => ({ ...r, id_ficha: "99" })),
+  );
+  assert.equal(mismatch.costStatus, "version_mismatch");
+  assert.equal(mismatch.components[0].unitCost, null);
+});
+test("consulta e cache de custos são separados por unidade", async () => {
+  const calls = [];
+  const upstream = createUpstream({
+    env,
+    sleep: async () => {},
+    fetchImpl: async (url) => {
+      calls.push(url.toString());
+      if (url.pathname === "/api/adm/fichatecnica/12")
+        return Response.json(raw);
+      assert.equal(url.pathname, "/api/adm/fichatecnica/item/23");
+      const unit = Number(url.searchParams.get("cd_empresa"));
+      return Response.json(
+        costTree.map((r) => ({
+          ...r,
+          custo_medio: unit * 20,
+          vl_custo_producao: unit * 5,
+        })),
+      );
+    },
+  });
+  assert.equal((await upstream({ id: 12, unit: 1 })).record.totalCost, 5);
+  assert.equal((await upstream({ id: 12, unit: 3 })).record.totalCost, 15);
+  await upstream({ id: 12, unit: 1 });
+  assert.equal(calls.length, 4);
+});
+test("falha da consulta de custo preserva composição sem inventar preços", async () => {
+  const upstream = createUpstream({
+    env,
+    sleep: async () => {},
+    fetchImpl: async (url) =>
+      url.pathname.endsWith("/item/23")
+        ? new Response("", { status: 500 })
+        : Response.json(raw),
+  });
+  const result = await upstream({ id: 12, unit: 1 });
+  assert.equal(result.record.components[0].name, "Farinha");
+  assert.equal(result.record.totalCost, null);
+  assert.equal(result.record.costStatus, "unavailable");
 });

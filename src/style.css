@@ -3935,3 +3935,119 @@ select:focus {
     transform: none;
   }
 }
+
+.everest-cost-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 24px;
+  margin: 26px 0;
+  background: #fff4eb;
+  border: 1px solid #ffdcc0;
+  border-radius: 12px;
+}
+.everest-cost-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.everest-cost-summary span {
+  font-size: 12px;
+  color: #786b60;
+}
+.everest-cost-summary strong {
+  font-size: 28px;
+  font-family: "Manrope", sans-serif;
+  letter-spacing: -1px;
+}
+.everest-cost-summary small {
+  color: #927e6d;
+  font-size: 10px;
+}
+.everest-cost-warning {
+  margin: 20px 0;
+  padding: 18px;
+  background: #faf7f2;
+  border-radius: 10px;
+}
+.everest-cost-warning p {
+  font-size: 13px;
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+.everest-money {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.everest-detail table {
+  min-width: 850px;
+}
+@media (max-width: 600px) {
+  .everest-cost-summary {
+    padding: 18px;
+    gap: 16px;
+  }
+  .everest-cost-summary strong {
+    font-size: 21px;
+  }
+}
+@media print {
+  .everest-detail table {
+    min-width: 0;
+    width: 100%;
+    font-size: 10px;
+  }
+  .everest-detail th,
+  .everest-detail td {
+    padding: 8px 5px;
+  }
+  .everest-cost-warning button {
+    display: none;
+  }
+  .everest-cost-summary {
+    break-inside: avoid;
+  }
+}
+@media screen and (max-width: 600px) {
+  .everest-detail table {
+    min-width: 0;
+  }
+  .everest-detail thead {
+    display: none;
+  }
+  .everest-detail tbody {
+    display: block;
+  }
+  .everest-detail tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 12px;
+    margin-bottom: 14px;
+    padding: 18px;
+    border: 1px solid #e9e1d8;
+    border-radius: 10px;
+  }
+  .everest-detail tbody td {
+    display: block;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+  .everest-detail tbody td:first-child {
+    grid-column: 1 / -1;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee6dd;
+  }
+  .everest-detail tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    color: #918171;
+    margin-bottom: 5px;
+  }
+  .everest-detail tbody td.everest-money {
+    font-size: 15px;
+    font-weight: 600;
+    color: #25221e;
+  }
+}

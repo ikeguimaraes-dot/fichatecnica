@@ -7,6 +7,8 @@ export type EverestComponent = {
   quantity: number | null;
   utilization: number | null;
   type: number | null;
+  unitCost: number | null;
+  appliedCost: number | null;
 };
 export type EverestRecord = {
   id: number;
@@ -28,6 +30,9 @@ export type EverestDetail = EverestRecord & {
   notes: string;
   shelfLifeDays: number | null;
   components: EverestComponent[];
+  costStatus: "available" | "partial" | "unavailable" | "version_mismatch";
+  totalCost: number | null;
+  costPerKg: number | null;
 };
 export type EverestPage = {
   records: EverestRecord[];
