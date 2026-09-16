@@ -51,24 +51,39 @@ A aplicação usa as configurações existentes do Supabase Auth. Para publicar,
 
 ## Publicação
 
-Compatível com hospedagens estáticas, como Vercel, Netlify e Cloudflare Pages:
+O deploy completo usa Vercel, com frontend estático e função de servidor para consultar o Everest:
 
 - Build: `npm run build`
 - Diretório de saída: `dist`
-- Variáveis opcionais: as de `.env.example`.
+- Variáveis: consulte `.env.example` e a seção Everest abaixo.
 
 O arquivo `vercel.json` define explicitamente o framework Vite, a instalação via `npm ci` e a saída `dist`. Isso evita que um preset Next.js selecionado no painel impeça o deploy. A raiz do projeto na Vercel deve ser a raiz deste repositório.
 
-Nenhum servidor administrativo ou chave secreta é necessário no deploy.
+## Ficha técnica · Everest
+
+O menu **Ficha técnica** consulta a API de produção do Everest, sem importar registros para as tabelas de receitas e sem alterar o cadastro original. Oferece busca por nome/código, filtro de situação, composição, preparo quando disponível e impressão/PDF.
+
+Configure no servidor Vercel: `EVEREST_USERNAME`, `EVEREST_PASSWORD`, `EVEREST_ENTITY`, `EVEREST_ENVIRONMENT` (`production` ou `homologation`) e `EVEREST_ALLOWED_USER_IDS` (UUIDs Supabase separados por vírgula). Produção usa entidade `2024059`; homologação usa `2020153`. As variáveis foram configuradas apenas em Production; previews exigem configuração própria. Nunca exponha estas credenciais em variáveis `VITE_*`.
+
+A função `/api/everest` valida a sessão no Supabase e permite somente usuários explicitamente autorizados. O cadastro de uma nova conta não libera automaticamente os dados da empresa. A conta inicialmente autorizada é `grupomeeteat@gmail.com`. O backend usa o mesmo Supabase do aplicativo; se trocar o projeto, configure também `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` no servidor.
+
+Conforme o [manual do Everest](https://homologacao.acomsistemas.com.br/docs), as consultas utilizam Basic Authentication, `GET /api/adm/fichatecnica` e `GET /api/adm/fichatecnica/{id}`, com `x-Entidade` e `x-Pagina` na query. Todas as páginas são carregadas, com progresso e indicação de resultado parcial em caso de falha. Há intervalo mínimo de 1,1 segundo por instância e uma nova tentativa para limite de consultas. Instâncias concorrentes ainda podem receber limitação do Everest; a tela permite tentar novamente. O cache interno dura até cinco minutos; **Atualizar fichas** o ignora.
+
+Rendimentos em KG e G/GR são exibidos em kg. Produções em litros ou unidades preservam a informação original e indicam peso em kg não informado. O endpoint de ficha não fornece preços: custos aparecem como não informados, sem cálculo estimado.
+
+`npm run dev` e `npm run preview` executam apenas o frontend. Para usar o backend localmente, utilize `vercel dev` com as variáveis de desenvolvimento configuradas. Os testes de interface simulam a API; nenhum dado é escrito no Everest.
 
 ## Verificação
 
 ```sh
 npx playwright install chromium
 npm test
+npm run test:api
 ```
 
 Os testes verificam busca, filtros, favoritos, criação/edição/exclusão, foto, cálculo com unidades diferentes, persistência e largura mobile. O Playwright compila e inicia uma prévia em `http://localhost:4173`. Os testes de livros também cobrem movimentação entre livros, capa, exclusão preservando receitas e dados locais anteriores.
+
+Os testes da integração cobrem autenticação, autorização, normalização de unidades, erros, paginação, busca, detalhes, impressão e layout mobile.
 
 ## Design
 
