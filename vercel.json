@@ -7,6 +7,9 @@
   "functions": {
     "api/everest.js": {
       "maxDuration": 120
+    },
+    "api/everest-worker.js": {
+      "maxDuration": 120
     }
   }
 }
