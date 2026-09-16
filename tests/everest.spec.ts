@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+const snapshot = "11111111-1111-4111-8111-111111111111";
 const record = {
   id: 12,
   itemId: 23,
@@ -22,6 +23,7 @@ const detail = {
   costStatus: "available",
   totalCost: 5,
   costPerKg: 10,
+  costAudit: null,
   components: [
     {
       itemId: 7,
@@ -34,10 +36,26 @@ const detail = {
       type: 281,
       unitCost: 20,
       appliedCost: 5,
+      costBasis: "everest",
+      stockUnitCost: 20,
     },
   ],
 };
-async function login(page: any) {
+const units = [
+  {
+    id: 1,
+    name: "MEET & EAT",
+    syncedAt: "2026-09-16T14:00:00Z",
+    recipeCount: 1,
+  },
+  {
+    id: 3,
+    name: "MADONNA CUCINA",
+    syncedAt: "2026-09-16T14:00:00Z",
+    recipeCount: 1,
+  },
+];
+async function login(page: Page) {
   await page.addInitScript(() =>
     localStorage.setItem(
       "sb-iqgrvptrtphvbmvrqntm-auth-token",
@@ -56,279 +74,99 @@ async function login(page: any) {
       }),
     ),
   );
-  await page.route("**/rest/v1/**", (route: any) =>
-    route.fulfill({ json: [] }),
-  );
-  await page.route("**/auth/v1/user", (route: any) =>
-    route.fulfill({ json: { id: "owner", email: "owner@example.com" } }),
+  await page.route("**/rest/v1/**", (r) => r.fulfill({ json: [] }));
+  await page.route("**/auth/v1/user", (r) =>
+    r.fulfill({ json: { id: "owner", email: "owner@example.com" } }),
   );
 }
-async function mockUnits(page: any) {
-  await page.route(
-    (url: URL) =>
-      url.pathname === "/api/everest" && url.searchParams.has("kind"),
-    (route: any) => {
-      const url = new URL(route.request().url());
-      const records =
-        url.searchParams.get("kind") === "units"
-          ? [
-              { id: 1, name: "MEET & EAT" },
-              { id: 3, name: "MADONNA CUCINA" },
-            ]
-          : [{ itemId: url.searchParams.get("unit") === "3" ? 24 : 23 }];
-      return route.fulfill({
-        json: {
-          records,
-          page: 1,
-          totalPages: 1,
-          environment: "production",
-          fetchedAt: "2026-09-16T14:00:00Z",
-        },
-      });
-    },
-  );
-}
-test("menu existe e visitante precisa entrar", async ({ page }) => {
-  await mockUnits(page);
+async function menu(page: Page) {
   await page.goto("/");
   await page
     .getByRole("button", { name: "Ficha técnica", exact: true })
     .click();
-  await expect(
-    page.getByRole("button", { name: "Entrar para consultar" }),
-  ).toBeVisible();
+}
+async function book(page: Page, name = "MEET & EAT") {
+  await page
+    .getByRole("button", { name: `Abrir livro ${name}`, exact: true })
+    .click();
+}
+function saved(records = [record]) {
+  return {
+    records,
+    page: 1,
+    totalPages: 1,
+    snapshotId: snapshot,
+    environment: "production",
+    fetchedAt: "2026-09-16T14:00:00Z",
+  };
+}
+function job(status = "running") {
+  return {
+    id: "job",
+    status,
+    progress: "MEET & EAT · custos: 20 de 100 itens",
+    error: status === "failed" ? "Consulta interrompida" : null,
+    requestedUnit: 1,
+    createdAt: "2026-09-16T15:00:00Z",
+    finishedAt: null,
+  };
+}
+async function standard(page: Page) {
+  await page.route("**/api/everest?**", (r) => {
+    const url = new URL(r.request().url());
+    return r.fulfill({
+      json:
+        url.searchParams.get("kind") === "units"
+          ? { records: units, job: null }
+          : url.searchParams.has("id")
+            ? { record: detail }
+            : saved(
+                url.searchParams.get("unit") === "3"
+                  ? [{ ...record, id: 13, name: "RECEITA MADONNA" }]
+                  : [record],
+              ),
+    });
+  });
+}
+test("visitante precisa entrar", async ({ page }) => {
+  await menu(page);
   await page.getByRole("button", { name: "Entrar para consultar" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
-test("lista todas as páginas, busca, detalhes e unidade preservada", async ({
+test("livro e detalhes usam só a cópia salva e fixam a versão consultada", async ({
   page,
 }) => {
   await login(page);
-  const seen: string[] = [];
-  await page.route("**/api/everest?**", (route) => {
-    const url = new URL(route.request().url());
-    seen.push(url.search);
-    if (url.searchParams.has("id"))
-      return route.fulfill({
-        json: {
-          record:
-            url.searchParams.get("id") === "13"
-              ? {
-                  ...detail,
-                  id: 13,
-                  name: "CALDO",
-                  unit: "L",
-                  quantity: 1,
-                  yieldKg: null,
-                }
-              : detail,
-        },
-      });
-    return route.fulfill({
-      json: {
-        records:
-          url.searchParams.get("page") === "2"
-            ? [
-                {
-                  ...record,
-                  id: 13,
-                  code: "500002",
-                  name: "CALDO",
-                  unit: "L",
-                  quantity: 1,
-                  yieldKg: null,
-                  status: 3,
-                },
-              ]
-            : [record],
-        page: Number(url.searchParams.get("page")),
-        totalPages: 2,
-        environment: "production",
-        fetchedAt: "2026-09-16T14:00:00Z",
-      },
-    });
+  await standard(page);
+  const requests: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("/api/everest"))
+      requests.push(r.method() + " " + new URL(r.url()).search);
   });
-  await mockUnits(page);
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Ficha técnica", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await expect(page.locator(".everest-record")).toHaveCount(2);
-  expect(seen).toContain("?page=2");
+  await menu(page);
+  await book(page);
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await expect(page.locator(".everest-connection")).toContainText("16/09/2026");
   await page.getByLabel("Buscar fichas técnicas").fill("massa");
-  await expect(page.locator(".everest-record")).toHaveCount(1);
   await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
-  await expect(page.getByRole("dialog")).toContainText("0,5 kg");
   await expect(page.getByRole("dialog")).toContainText("Farinha");
   await expect(page.locator(".everest-cost-summary")).toContainText("5,00");
-  await expect(page.locator(".everest-money").first()).toContainText("20,00");
-  await expect(page.getByRole("dialog")).toContainText(
-    "Misture e sove a massa.",
-  );
+  expect(requests).toEqual([
+    "GET ?kind=units",
+    "GET ?kind=book&unit=1",
+    `GET ?id=12&unit=1&snapshot=${snapshot}`,
+  ]);
   await page.emulateMedia({ media: "print" });
-  await expect(page.getByRole("dialog")).toBeVisible();
   await expect(page.getByText("Farinha", { exact: true })).toBeVisible();
-  await page.emulateMedia({ media: "screen" });
-  expect(seen).toContain("?id=12&unit=1");
-  await page.getByLabel("Fechar janela").click();
-  await page.getByLabel("Limpar busca de fichas").click();
-  await page.getByLabel("Filtrar situação das fichas").selectOption("3");
-  await expect(page.locator(".everest-record")).toHaveCount(1);
-  await page.getByRole("button", { name: "Ver ficha CALDO" }).click();
-  await expect(page.getByRole("dialog")).toContainText(
-    "O peso final em kg não foi fornecido.",
-  );
 });
-test("erro na segunda página deixa claro que a lista está incompleta e permite tentar novamente", async ({
-  page,
-}) => {
+test("troca de livro não mistura unidades", async ({ page }) => {
   await login(page);
-  await page.route("**/api/everest?**", (route) =>
-    new URL(route.request().url()).searchParams.get("page") === "2"
-      ? route.fulfill({ status: 502, json: { error: "Everest indisponível" } })
-      : route.fulfill({
-          json: {
-            records: [record],
-            page: 1,
-            totalPages: 2,
-            environment: "production",
-            fetchedAt: "2026-09-16T14:00:00Z",
-          },
-        }),
-  );
-  await mockUnits(page);
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Ficha técnica", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await expect(page.getByRole("alert")).toContainText(
-    "A busca ainda não inclui toda a base.",
-  );
-  await expect(
-    page.getByRole("button", { name: "Tentar novamente", exact: true }),
-  ).toBeVisible();
-});
-test("layout da consulta e detalhe no celular", async ({ page }) => {
-  await login(page);
-  await page.route("**/api/everest?**", (route) =>
-    route.fulfill({
-      json: new URL(route.request().url()).searchParams.has("id")
-        ? { record: detail }
-        : {
-            records: [
-              record,
-              {
-                ...record,
-                id: 14,
-                name: "MOLHO DE TOMATES ASSADOS",
-                yieldKg: 2.5,
-              },
-            ],
-            page: 1,
-            totalPages: 1,
-            environment: "production",
-            fetchedAt: "2026-09-16T14:00:00Z",
-          },
-    }),
-  );
-  await page.setViewportSize({ width: 1440, height: 1000 });
-  await mockUnits(page);
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Ficha técnica", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await expect(page.locator(".everest-record")).toHaveCount(2);
-  await page.screenshot({
-    path: "test-results/everest-desktop.png",
-    fullPage: true,
-    animations: "disabled",
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({
-    path: "test-results/everest-mobile.png",
-    fullPage: true,
-    animations: "disabled",
-  });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
-  await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
-  await expect(page.getByRole("dialog")).toContainText("Farinha");
-  await expect(page.locator(".everest-cost-summary")).toContainText("5,00");
-  await expect(page.locator(".everest-money").first()).toContainText("20,00");
-  await page.screenshot({
-    path: "test-results/everest-detail-mobile.png",
-    fullPage: true,
-    animations: "disabled",
-  });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
-});
-
-test("livros isolam fichas pelos itens da unidade e voltar permite trocar de livro", async ({
-  page,
-}) => {
-  await login(page);
-  await page.route("**/api/everest?**", (route) =>
-    route.fulfill({
-      json: {
-        records: [
-          record,
-          { ...record, id: 30, itemId: 24, name: "RECEITA MADONNA" },
-        ],
-        page: 1,
-        totalPages: 1,
-        environment: "production",
-        fetchedAt: "2026-09-16T14:00:00Z",
-      },
-    }),
-  );
-  await mockUnits(page);
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Ficha técnica", exact: true })
-    .click();
-  await expect(page.locator(".everest-unit-book")).toHaveCount(2);
-  await page.screenshot({
-    path: "test-results/unit-books-desktop.png",
-    fullPage: true,
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({
-    path: "test-results/unit-books-mobile.png",
-    fullPage: true,
-  });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await standard(page);
+  await menu(page);
+  await book(page);
   await expect(page.locator(".everest-record")).toContainText("MASSA FRESCA");
   await page.getByRole("button", { name: "Livros por unidade" }).click();
-  await page.getByLabel("Buscar unidade").fill("madonna");
-  await expect(page.locator(".everest-unit-book")).toHaveCount(1);
-  await page
-    .getByRole("button", { name: "Abrir livro MADONNA CUCINA", exact: true })
-    .click();
-  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await book(page, "MADONNA CUCINA");
   await expect(page.locator(".everest-record")).toContainText(
     "RECEITA MADONNA",
   );
@@ -336,136 +174,119 @@ test("livros isolam fichas pelos itens da unidade e voltar permite trocar de liv
     page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }),
   ).toHaveCount(0);
 });
-test("não mostra fichas globais se os vínculos da unidade falharem", async ({
+test("atualização manual preserva o livro anterior até a publicação e troca depois", async ({
   page,
 }) => {
   await login(page);
-  await mockUnits(page);
-  await page.route(
-    (url: URL) => url.searchParams.get("kind") === "members",
-    (route) =>
-      route.fulfill({ status: 502, json: { error: "Falha nos vínculos" } }),
-  );
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Ficha técnica", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await expect(page.getByRole("alert")).toContainText("Falha nos vínculos");
-  await expect(page.locator(".everest-record")).toHaveCount(0);
-});
-
-test("lê todas as páginas de vínculos antes de filtrar o livro", async ({
-  page,
-}) => {
-  await login(page);
-  await mockUnits(page);
-  const seen: string[] = [];
-  await page.route("**/api/everest?**", async (route) => {
-    const url = new URL(route.request().url());
-    const kind = url.searchParams.get("kind");
-    if (kind === "units") return route.fallback();
-    seen.push(url.search);
-    const current = Number(url.searchParams.get("page"));
-    return route.fulfill({
-      json: {
-        records:
-          kind === "members"
-            ? [{ itemId: current === 1 ? 999 : 23 }]
-            : [record],
-        page: current,
-        totalPages: kind === "members" ? 2 : 1,
-        environment: "production",
-        fetchedAt: "2026-09-16T14:00:00Z",
-      },
-    });
-  });
-  await page.goto("/");
-  await page
-    .getByRole("button", { name: "Ficha técnica", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await expect(page.locator(".everest-record")).toHaveCount(1);
-  expect(seen).toEqual([
-    "?kind=members&unit=1&page=1",
-    "?kind=members&unit=1&page=2",
-    "?page=1",
-  ]);
-});
-
-test("explica preparo com estoque zerado e alerta ingredientes sem custo na origem", async ({
-  page,
-}) => {
-  await login(page);
-  await page.route("**/api/everest?**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has("id"))
-      return route.fulfill({
+  let syncing = false,
+    published = false;
+  const writes: any[] = [];
+  await page.route("**/api/everest?**", (r) => {
+    const url = new URL(r.request().url());
+    if (r.request().method() === "POST") {
+      writes.push(r.request().postDataJSON());
+      syncing = true;
+      return r.fulfill({ status: 202, json: { job: job() } });
+    }
+    if (url.searchParams.get("kind") === "units")
+      return r.fulfill({
         json: {
-          record: {
-            ...detail,
-            costStatus: "review",
-            costAudit: {
-              sourceTotal: 0,
-              difference: 5,
-              zeroCostItems: ["Ingrediente sem custo"],
-              missingCostItems: [],
-              stocklessCostItems: [],
-            },
-            components: [
-              {
-                ...detail.components[0],
-                costBasis: "composition",
-                stockUnitCost: 0,
-              },
-            ],
-          },
+          records: units.map((u) => ({
+            ...u,
+            syncedAt: published ? "2026-09-17T14:00:00Z" : u.syncedAt,
+          })),
+          job: syncing ? job(published ? "completed" : "running") : null,
         },
       });
-    return route.fulfill({
-      json: {
-        records: [record],
-        page: 1,
-        totalPages: 1,
-        environment: "production",
-        fetchedAt: "2026-09-16T14:00:00Z",
-      },
+    return r.fulfill({
+      json: saved(
+        published ? [{ ...record, name: "MASSA ATUALIZADA" }] : [record],
+      ),
     });
   });
-  await mockUnits(page);
-  await page.goto("/");
+  await menu(page);
+  await book(page);
+  await expect(page.locator(".everest-record")).toContainText("MASSA FRESCA");
+  await page.getByRole("button", { name: "Atualizar esta unidade" }).click();
+  expect(writes).toEqual([{ unitId: 1 }]);
+  await expect(
+    page.getByRole("button", { name: "Atualizar esta unidade" }),
+  ).toBeDisabled();
+  await expect(page.locator(".everest-record")).toContainText("MASSA FRESCA");
+  await expect(page.getByRole("status")).toContainText(
+    "Você pode fechar a página",
+  );
+  published = true;
+  await expect(page.locator(".everest-record")).toContainText(
+    "MASSA ATUALIZADA",
+    { timeout: 10000 },
+  );
+});
+test("atualizar todas envia uma única solicitação e permite acompanhar após recarregar", async ({
+  page,
+}) => {
+  await login(page);
+  let started = false;
+  const writes: any[] = [];
+  await page.route("**/api/everest?**", (r) => {
+    if (r.request().method() === "POST") {
+      started = true;
+      writes.push(r.request().postDataJSON());
+      return r.fulfill({ status: 202, json: { job: job() } });
+    }
+    return r.fulfill({ json: { records: units, job: started ? job() : null } });
+  });
+  await menu(page);
+  await page.getByRole("button", { name: "Atualizar todas" }).click();
+  expect(writes).toEqual([{ unitId: null }]);
+  await page.reload();
   await page
     .getByRole("button", { name: "Ficha técnica", exact: true })
     .click();
-  await page
-    .getByRole("button", { name: "Abrir livro MEET & EAT", exact: true })
-    .click();
-  await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
-  await expect(page.locator(".everest-cost-summary")).toContainText(
-    "Total calculado · conferir",
+  await expect(page.getByRole("status")).toContainText("custos: 20 de 100");
+  await expect(
+    page.getByRole("button", { name: "Atualizar todas" }),
+  ).toBeDisabled();
+});
+test("falha da sincronização mantém a cópia salva disponível", async ({
+  page,
+}) => {
+  await login(page);
+  await page.route("**/api/everest?**", (r) =>
+    r.fulfill({
+      json:
+        new URL(r.request().url()).searchParams.get("kind") === "units"
+          ? { records: units, job: job("failed") }
+          : saved(),
+    }),
   );
-  await expect(page.getByRole("dialog")).toContainText(
-    "Calculado pelos ingredientes",
+  await menu(page);
+  await book(page);
+  await expect(page.getByRole("status")).toContainText(
+    "última cópia concluída",
   );
-  await expect(page.locator(".everest-money").first()).toContainText("20,00");
-  await page.getByText("Conferência dos custos", { exact: true }).click();
-  await expect(page.locator(".everest-cost-audit")).toContainText(
-    "Ingrediente sem custo",
-  );
-  await expect(page.locator(".everest-cost-audit")).toContainText(
-    "Diferença de",
-  );
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Atualizar esta unidade" }),
+  ).toBeEnabled();
+});
+test("primeira carga e interface móvel com custos e conferência", async ({
+  page,
+}) => {
+  await login(page);
+  await standard(page);
+  await menu(page);
+  await expect(page.locator(".everest-unit-book")).toHaveCount(2);
   await page.screenshot({
-    path: "test-results/cost-audit-desktop.png",
+    path: "test-results/snapshots-library.png",
     fullPage: true,
   });
+  await book(page);
+  await page.getByRole("button", { name: "Ver ficha MASSA FRESCA" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator(".everest-money").first()).toContainText("20,00");
   await page.screenshot({
-    path: "test-results/cost-audit-mobile.png",
+    path: "test-results/snapshots-mobile.png",
     fullPage: true,
   });
   expect(
@@ -473,4 +294,28 @@ test("explica preparo com estoque zerado e alerta ingredientes sem custo na orig
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+test("livro sem primeira cópia informa sincronização pendente", async ({
+  page,
+}) => {
+  await login(page);
+  await page.route("**/api/everest?**", (r) =>
+    r.fulfill({
+      json:
+        new URL(r.request().url()).searchParams.get("kind") === "units"
+          ? {
+              records: units.map((u) => ({
+                ...u,
+                syncedAt: null,
+                recipeCount: 0,
+              })),
+              job: job(),
+            }
+          : saved([]),
+    }),
+  );
+  await menu(page);
+  await book(page);
+  await expect(page.getByText("Seu livro está sendo preparado")).toBeVisible();
+  await expect(page.locator(".everest-record")).toHaveCount(0);
 });

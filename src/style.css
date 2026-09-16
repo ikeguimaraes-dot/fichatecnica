@@ -4092,3 +4092,55 @@ select:focus {
   background: #fff4e9;
   border-radius: 8px;
 }
+.everest-sync-notice {
+  display: flex;
+  gap: 14px;
+  padding: 18px 22px;
+  background: #fff6eb;
+  border: 1px solid #f6d9b8;
+  border-radius: 12px;
+  margin: 0 0 26px;
+  align-items: flex-start;
+  color: #754c25;
+}
+.everest-sync-notice svg {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.everest-sync-notice strong {
+  font-size: 13px;
+}
+.everest-sync-notice p {
+  font-size: 13px;
+  margin: 6px 0;
+}
+.everest-sync-notice small {
+  font-size: 11px;
+  line-height: 1.6;
+  display: block;
+}
+.everest-sync-notice.failed {
+  border-color: #e9bdb4;
+  background: #fff3f0;
+  color: #8f4034;
+}
+.everest-first-sync {
+  text-align: center;
+  padding: 26px;
+  border: 1px dashed #eadcca;
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+.everest-first-sync h3 {
+  font-family: var(--serif);
+  font-size: 25px;
+  font-weight: 400;
+  margin: 12px 0;
+}
+.everest-first-sync p {
+  font-size: 13px;
+  line-height: 1.7;
+  max-width: 520px;
+  margin: 0 auto;
+  color: #88786a;
+}

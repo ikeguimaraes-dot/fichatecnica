@@ -35,13 +35,18 @@ alter table public.receita_everest_snapshot enable row level security;
 revoke all on public.receita_everest_unidade,public.receita_everest_sync,public.receita_everest_template,public.receita_everest_snapshot from public,anon,authenticated;
 grant all on public.receita_everest_unidade,public.receita_everest_sync,public.receita_everest_template,public.receita_everest_snapshot to service_role;
 
-create function public.receita_everest_start(p_user uuid, p_unit bigint default null)
+create or replace function public.receita_everest_start(p_user uuid, p_unit bigint default null)
 returns public.receita_everest_sync language plpgsql security invoker set search_path='' as $$
 declare j public.receita_everest_sync;
 begin
  perform pg_advisory_xact_lock(2024059,91853);
  select * into j from public.receita_everest_sync where status in ('queued','running') limit 1;
  if found then return j; end if;
+ select * into j from public.receita_everest_sync order by created_at desc limit 1;
+ if found and j.status='failed' and j.requested_unit is not distinct from p_unit then
+  update public.receita_everest_sync set status='queued',attempts=0,error=null,available_at=now(),lease_token=null,lease_until=null,finished_at=null,updated_at=now(),progress='Retomando atualização interrompida' where id=j.id returning * into j;
+  return j;
+ end if;
  if p_unit is not null and not exists(select 1 from public.receita_everest_unidade where id=p_unit and enabled) then raise exception 'invalid_unit'; end if;
  insert into public.receita_everest_sync(requested_by,requested_unit) values(p_user,p_unit) returning * into j;
  return j;

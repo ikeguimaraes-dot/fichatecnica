@@ -46,13 +46,28 @@ export type EverestDetail = EverestRecord & {
 };
 export type EverestPage = {
   records: EverestRecord[];
+  snapshotId?: string | null;
   page: number;
   totalPages: number;
   environment: string;
   fetchedAt: string;
 };
 
-export type EverestUnit = { id: number; name: string };
+export type EverestUnit = {
+  id: number;
+  name: string;
+  syncedAt: string | null;
+  recipeCount: number;
+};
+export type EverestSyncJob = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  progress: string;
+  error: string | null;
+  requestedUnit: number | null;
+  createdAt: string;
+  finishedAt: string | null;
+};
 export type EverestCollection<T> = Omit<EverestPage, "records"> & {
   records: T[];
 };

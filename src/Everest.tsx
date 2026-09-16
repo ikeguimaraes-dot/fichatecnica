@@ -25,6 +25,7 @@ import type {
   EverestPage,
   EverestUnit,
   EverestCollection,
+  EverestSyncJob,
 } from "./everest-types";
 const numeric = (n: number | null) =>
   n === null
@@ -53,13 +54,19 @@ const searchText = (s: string) =>
 async function request<T>(
   params: URLSearchParams,
   signal: AbortSignal,
+  body?: { unitId: number | null },
 ): Promise<T> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session) throw new Error("Entre na sua conta para consultar o Everest.");
   const response = await fetch(`/api/everest?${params}`, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
+    method: body ? "POST" : "GET",
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
     signal,
   });
   let data;
@@ -74,24 +81,55 @@ async function request<T>(
     throw new Error(data.error || "Não foi possível consultar as fichas.");
   return data;
 }
+function SyncNotice({ job }: { job: EverestSyncJob | null }) {
+  if (!job || job.status === "completed") return null;
+  return (
+    <div
+      className={`everest-sync-notice ${job.status === "failed" ? "failed" : ""}`}
+      role="status"
+    >
+      {job.status !== "failed" && <LoaderCircle size={18} className="spin" />}
+      <div>
+        <strong>
+          {job.status === "failed"
+            ? "A atualização não foi concluída"
+            : "Atualização em segundo plano"}
+        </strong>
+        <p>{job.status === "failed" ? job.error : job.progress}</p>
+        <small>
+          {job.status === "failed"
+            ? "A última cópia concluída continua disponível. Use Atualizar para tentar novamente."
+            : "Você pode fechar a página. A cópia atual continua disponível até cada livro ficar pronto."}
+        </small>
+      </div>
+    </div>
+  );
+}
 function UnitRecipes({
   session,
   onLogin,
   unit,
   onBack,
+  onSync,
+  job = null,
+  syncing = false,
+  syncError = "",
 }: {
   session: Session | null;
   onLogin: () => void;
   unit?: EverestUnit;
   onBack?: () => void;
+  onSync?: () => void;
+  job?: EverestSyncJob | null;
+  syncing?: boolean;
+  syncError?: string;
 }) {
   const [records, setRecords] = useState<EverestRecord[]>([]),
     [loading, setLoading] = useState(false),
     [error, setError] = useState(""),
-    [progress, setProgress] = useState({ page: 0, total: 0 }),
     [updated, setUpdated] = useState(""),
     [environment, setEnvironment] = useState("production");
-  const [phase, setPhase] = useState("fichas");
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState("all"),
     [page, setPage] = useState(1);
@@ -101,80 +139,26 @@ function UnitRecipes({
     [detailError, setDetailError] = useState("");
   const listController = useRef<AbortController | null>(null),
     detailController = useRef<AbortController | null>(null);
-  async function load(refresh = false) {
+  async function load() {
     listController.current?.abort();
     const controller = new AbortController();
     listController.current = controller;
     setLoading(true);
     setError("");
     setRecords([]);
-    setProgress({ page: 0, total: 0 });
     setUpdated("");
     setPage(1);
     try {
-      const members = new Set<number>();
-      if (unit) {
-        setPhase("vínculos da unidade");
-        let totalMembers = 1;
-        for (let current = 1; current <= totalMembers; current++) {
-          const params = new URLSearchParams({
-            kind: "members",
-            unit: String(unit.id),
-            page: String(current),
-          });
-          if (refresh) params.set("refresh", "1");
-          const data = await request<EverestCollection<{ itemId: number }>>(
-            params,
-            controller.signal,
-          );
-          if (controller.signal.aborted) return;
-          if (
-            !Array.isArray(data.records) ||
-            !Number.isSafeInteger(data.totalPages) ||
-            data.totalPages < 1 ||
-            data.totalPages > 100
-          )
-            throw new Error(
-              "Os vínculos da unidade retornaram uma lista inválida.",
-            );
-          totalMembers = data.totalPages;
-          data.records.forEach((r) => members.add(r.itemId));
-          setProgress({ page: current, total: totalMembers });
-          if (current < totalMembers)
-            await new Promise((resolve) => setTimeout(resolve, 1100));
-          if (controller.signal.aborted) return;
-        }
-      }
-      setPhase("fichas");
-      setProgress({ page: 0, total: 0 });
-      let total = 1;
-      const rows = new Map<number, EverestRecord>();
-      for (let current = 1; current <= total; current++) {
-        const params = new URLSearchParams({ page: String(current) });
-        if (refresh) params.set("refresh", "1");
-        const data = await request<EverestPage>(params, controller.signal);
-        if (controller.signal.aborted) return;
-        if (
-          !Array.isArray(data.records) ||
-          !Number.isSafeInteger(data.totalPages) ||
-          data.totalPages < 1 ||
-          data.totalPages > 100
-        )
-          throw new Error(
-            "O Everest retornou uma lista inválida. Tente novamente.",
-          );
-        total = data.totalPages;
-        for (const r of data.records)
-          if (!unit || (r.itemId !== null && members.has(r.itemId)))
-            rows.set(r.id, r);
-        setRecords([...rows.values()]);
-        setProgress({ page: current, total });
-        setEnvironment(data.environment);
-        setUpdated(data.fetchedAt);
-        if (current < total)
-          await new Promise((resolve) => setTimeout(resolve, 1100));
-        if (controller.signal.aborted) return;
-      }
+      if (!unit) return;
+      const data = await request<EverestPage>(
+        new URLSearchParams({ kind: "book", unit: String(unit.id) }),
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      setRecords(data.records);
+      setSnapshotId(data.snapshotId || null);
+      setUpdated(data.fetchedAt);
+      setEnvironment(data.environment);
     } catch (e) {
       if (!controller.signal.aborted)
         setError(
@@ -184,7 +168,7 @@ function UnitRecipes({
       if (!controller.signal.aborted) setLoading(false);
     }
   }
-  async function open(record: EverestRecord, refresh = false) {
+  async function open(record: EverestRecord) {
     detailController.current?.abort();
     const controller = new AbortController();
     detailController.current = controller;
@@ -197,7 +181,7 @@ function UnitRecipes({
         new URLSearchParams({
           id: String(record.id),
           ...(unit ? { unit: String(unit.id) } : {}),
-          ...(refresh ? { refresh: "1" } : {}),
+          ...(snapshotId ? { snapshot: snapshotId } : {}),
         }),
         controller.signal,
       );
@@ -222,7 +206,7 @@ function UnitRecipes({
       listController.current?.abort();
       detailController.current?.abort();
     };
-  }, [session?.user.id, unit?.id]);
+  }, [session?.user.id, unit?.id, unit?.syncedAt]);
   const filtered = records
     .filter(
       (r) =>
@@ -261,16 +245,22 @@ function UnitRecipes({
           </p>
         </div>
         {session && (
-          <button
-            className="secondary"
-            disabled={loading}
-            onClick={() => load(true)}
-          >
-            <RefreshCw size={16} className={loading ? "spin" : ""} />
-            Atualizar fichas
+          <button className="secondary" disabled={syncing} onClick={onSync}>
+            <RefreshCw size={16} className={syncing ? "spin" : ""} />
+            Atualizar esta unidade
           </button>
         )}
       </div>
+      {session && (
+        <>
+          <SyncNotice job={job} />
+          {syncError && (
+            <p className="everest-error" role="alert">
+              {syncError}
+            </p>
+          )}
+        </>
+      )}
       {!session ? (
         <div className="everest-locked">
           <div className="everest-lock-icon">
@@ -292,7 +282,7 @@ function UnitRecipes({
           </button>
           <span className="everest-lock-note">
             <Cloud size={14} />
-            Consulta direta ao Everest
+            Biblioteca salva e atualizada por você
           </span>
         </div>
       ) : (
@@ -309,27 +299,35 @@ function UnitRecipes({
               {loading ? (
                 <>
                   <LoaderCircle size={13} className="spin" />
-                  Carregando{" "}
-                  {progress.total
-                    ? `${phase}: ${progress.page} de ${progress.total} páginas`
-                    : `${phase}…`}
+                  Abrindo a cópia salva…
                 </>
               ) : error ? (
                 "Consulta interrompida"
               ) : updated ? (
                 <>
                   <CheckCircle2 size={13} />
-                  Consultado às{" "}
+                  Última atualização: {date(updated)} às{" "}
                   {new Date(updated).toLocaleTimeString("pt-BR", {
                     hour: "2-digit",
                     minute: "2-digit",
                   })}
                 </>
               ) : (
-                "Aguardando consulta"
+                "Aguardando primeira sincronização"
               )}
             </span>
           </div>
+          {!unit?.syncedAt && !loading && !error && (
+            <div className="everest-first-sync">
+              <BookOpen size={24} />
+              <h3>Seu livro está sendo preparado</h3>
+              <p>
+                A primeira sincronização pode demorar, pois inclui os custos de
+                cada ficha. Depois dela, este livro abrirá direto da cópia
+                salva.
+              </p>
+            </div>
+          )}
           <div className="everest-stats">
             <div>
               <span>
@@ -367,7 +365,7 @@ function UnitRecipes({
                   </p>
                 )}
               </div>
-              <button className="secondary" onClick={() => load(true)}>
+              <button className="secondary" onClick={() => load()}>
                 Tentar novamente
               </button>
             </div>
@@ -431,7 +429,7 @@ function UnitRecipes({
               <h3>Abrindo suas fichas…</h3>
               <p>A consulta pode levar alguns segundos.</p>
             </div>
-          ) : !visible.length && !error ? (
+          ) : !visible.length && !error && unit?.syncedAt ? (
             <div className="empty">
               <ClipboardList size={35} />
               <h3>
@@ -530,9 +528,10 @@ function UnitRecipes({
             </div>
           )}
           <p className="everest-footnote">
-            Fichas dos itens vinculados a esta unidade no Everest. Itens
-            compartilhados podem aparecer em mais de um livro. Para alterar o
-            cadastro de origem, utilize o Everest.
+            Cópia salva dos itens vinculados a esta unidade no Everest. Use
+            Atualizar esta unidade para buscar mudanças de fichas e preços.
+            Itens compartilhados podem aparecer em mais de um livro. Para
+            alterar o cadastro de origem, utilize o Everest.
           </p>
         </>
       )}
@@ -549,7 +548,7 @@ function UnitRecipes({
               {detailLoading ? (
                 <div className="empty">
                   <LoaderCircle className="spin" />
-                  <p>Consultando a composição…</p>
+                  <p>Abrindo a composição salva…</p>
                 </div>
               ) : detailError ? (
                 <div className="empty" role="alert">
@@ -639,9 +638,9 @@ function UnitRecipes({
                         </p>
                         <button
                           className="secondary"
-                          onClick={() => open(selected, true)}
+                          onClick={() => open(selected)}
                         >
-                          <RefreshCw size={14} /> Consultar custos novamente
+                          <RefreshCw size={14} /> Reabrir custos salvos
                         </button>
                       </div>
                     )}
@@ -847,61 +846,75 @@ export function Everest({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [job, setJob] = useState<EverestSyncJob | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [syncError, setSyncError] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
-  async function loadUnits(refresh = false) {
+  const syncControllerRef = useRef<AbortController | null>(null);
+  const syncing =
+    starting || job?.status === "queued" || job?.status === "running";
+  async function loadUnits(silent = false) {
     controllerRef.current?.abort();
     const controller = new AbortController();
     controllerRef.current = controller;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError("");
-    setUnits([]);
     try {
-      let total = 1;
-      const all = new Map<number, EverestUnit>();
-      for (let page = 1; page <= total; page++) {
-        const params = new URLSearchParams({
-          kind: "units",
-          page: String(page),
-        });
-        if (refresh) params.set("refresh", "1");
-        const data = await request<EverestCollection<EverestUnit>>(
-          params,
-          controller.signal,
-        );
-        if (controller.signal.aborted) return;
-        if (
-          !Array.isArray(data.records) ||
-          !Number.isSafeInteger(data.totalPages) ||
-          data.totalPages < 1 ||
-          data.totalPages > 100
-        )
-          throw new Error("A lista de unidades não pôde ser validada.");
-        total = data.totalPages;
-        data.records.forEach((u) => all.set(u.id, u));
-        setUnits(
-          [...all.values()].sort((a, b) =>
-            a.name.localeCompare(b.name, "pt-BR"),
-          ),
-        );
-        if (page < total)
-          await new Promise((resolve) => setTimeout(resolve, 1100));
-        if (controller.signal.aborted) return;
-      }
+      const data = await request<
+        EverestCollection<EverestUnit> & { job: EverestSyncJob | null }
+      >(new URLSearchParams({ kind: "units" }), controller.signal);
+      if (controller.signal.aborted) return;
+      setUnits(data.records);
+      setJob(data.job);
     } catch (e) {
       if (!controller.signal.aborted)
         setError(
           e instanceof Error
             ? e.message
-            : "Não foi possível consultar as unidades.",
+            : "Não foi possível abrir os livros salvos.",
         );
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
   }
+  async function startSync(unitId: number | null) {
+    if (syncing) return;
+    const controller = new AbortController();
+    syncControllerRef.current = controller;
+    setStarting(true);
+    setSyncError("");
+    try {
+      const data = await request<{ job: EverestSyncJob }>(
+        new URLSearchParams(),
+        controller.signal,
+        { unitId },
+      );
+      if (!controller.signal.aborted) setJob(data.job);
+    } catch (e) {
+      if (!controller.signal.aborted)
+        setSyncError(
+          e instanceof Error
+            ? e.message
+            : "Não foi possível iniciar a atualização.",
+        );
+    } finally {
+      if (!controller.signal.aborted) setStarting(false);
+    }
+  }
   useEffect(() => {
     if (session) void loadUnits();
-    return () => controllerRef.current?.abort();
+    return () => {
+      controllerRef.current?.abort();
+      syncControllerRef.current?.abort();
+    };
   }, [session?.user.id]);
+  useEffect(() => {
+    if (!session || !syncing) return;
+    const timer = setInterval(() => {
+      void loadUnits(true);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [session?.user.id, syncing]);
   if (!session) return <UnitRecipes session={null} onLogin={onLogin} />;
   if (selectedUnit)
     return (
@@ -909,7 +922,11 @@ export function Everest({
         key={selectedUnit.id}
         session={session}
         onLogin={onLogin}
-        unit={selectedUnit}
+        unit={units.find((u) => u.id === selectedUnit.id) || selectedUnit}
+        onSync={() => startSync(selectedUnit.id)}
+        syncing={syncing}
+        job={job}
+        syncError={syncError}
         onBack={() => setSelectedUnit(null)}
       />
     );
@@ -932,13 +949,19 @@ export function Everest({
         </div>
         <button
           className="secondary"
-          disabled={loading}
-          onClick={() => loadUnits(true)}
+          disabled={syncing}
+          onClick={() => startSync(null)}
         >
-          <RefreshCw size={16} className={loading ? "spin" : ""} /> Atualizar
-          unidades
+          <RefreshCw size={16} className={syncing ? "spin" : ""} /> Atualizar
+          todas
         </button>
       </div>
+      <SyncNotice job={job} />
+      {syncError && (
+        <p className="everest-error" role="alert">
+          {syncError}
+        </p>
+      )}
       <div className="everest-books-toolbar">
         <span>
           <Building2 size={18} /> {units.length} unidades{" "}
@@ -994,7 +1017,11 @@ export function Everest({
                 </div>
               </div>
               <div className="everest-book-caption">
-                <span>Explorar fichas técnicas</span>
+                <span>
+                  {unit.syncedAt
+                    ? `${unit.recipeCount} fichas · ${date(unit.syncedAt)}`
+                    : "Primeira sincronização pendente"}
+                </span>
                 <ArrowRight size={18} />
               </div>
             </button>
@@ -1018,7 +1045,8 @@ export function Everest({
       )}
       <p className="everest-footnote">
         Um livro para cada unidade do Everest. As fichas são organizadas pelos
-        vínculos dos itens no cadastro de origem.
+        vínculos dos itens no cadastro de origem. Os dados só mudam quando você
+        solicita uma atualização.
       </p>
     </section>
   );

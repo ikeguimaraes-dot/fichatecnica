@@ -1,2 +1,2 @@
-import { createHandler } from "../server/everest.mjs";
-export default createHandler();
+import { createSnapshotHandler } from "../server/everest-snapshot-api.mjs";
+export default createSnapshotHandler();
