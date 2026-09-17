@@ -127,6 +127,9 @@ export function SharedBook({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState("");
+  const [detailTab, setDetailTab] = useState<"technical" | "recipe">(
+    "technical",
+  );
   const [editor, setEditor] = useState<Recipe | null>(null),
     [detail, setDetail] = useState<SharedRecipe | null>(null),
     [saving, setSaving] = useState(false),
@@ -351,7 +354,10 @@ export function SharedBook({
             <button
               key={r.id}
               className="everest-record"
-              onClick={() => setDetail(r)}
+              onClick={() => {
+                setDetailTab("technical");
+                setDetail(r);
+              }}
               aria-label={`Ver receita ${r.title}`}
             >
               <span className="everest-record-icon">
@@ -448,81 +454,144 @@ export function SharedBook({
                   </>
                 )}
               </div>
-              <div className="detail-summary">
-                <div>
-                  <span>Custo total</span>
-                  <strong>{money(totalCost(detail))}</strong>
-                </div>
-                <div>
-                  <span>Custo por kg</span>
-                  <strong>{costPerKgLabel(detail)}</strong>
-                </div>
-                <div>
-                  <span>Rendimento</span>
-                  <strong>{yieldLabel(detail)}</strong>
-                </div>
-                <div>
-                  <span>Preparo</span>
-                  <strong>{detail.minutes} min</strong>
-                </div>
+              <div
+                className="shared-detail-tabs"
+                role="tablist"
+                aria-label="Visualização da ficha"
+              >
+                {(
+                  [
+                    { id: "technical", label: "Ficha técnica" },
+                    { id: "recipe", label: "Receita" },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.id}
+                    id={`shared-${t.id}-tab`}
+                    role="tab"
+                    aria-selected={detailTab === t.id}
+                    aria-controls="shared-detail-panel"
+                    tabIndex={detailTab === t.id ? 0 : -1}
+                    onClick={() => setDetailTab(t.id)}
+                    onKeyDown={(e) => {
+                      if (
+                        ["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                          e.key,
+                        )
+                      ) {
+                        e.preventDefault();
+                        const next =
+                          e.key === "Home"
+                            ? "technical"
+                            : e.key === "End"
+                              ? "recipe"
+                              : detailTab === "technical"
+                                ? "recipe"
+                                : "technical";
+                        setDetailTab(next);
+                        document.getElementById(`shared-${next}-tab`)?.focus();
+                      }
+                    }}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
-              {error && <p role="alert">{error}</p>}
-              {photo(detail.cover) && (
-                <button
-                  className="shared-thumb"
-                  aria-label="Ampliar foto do prato"
-                  onClick={() => setZoom(photo(detail.cover))}
+              <div
+                id="shared-detail-panel"
+                role="tabpanel"
+                aria-labelledby={`shared-${detailTab}-tab`}
+              >
+                <div
+                  className={`detail-summary ${detailTab === "recipe" ? "shared-recipe-summary" : ""}`}
                 >
-                  <img src={photo(detail.cover)} alt="Prato final" />
-                </button>
-              )}
-              <h3>Ingredientes</h3>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Ingrediente</th>
-                      <th>Quantidade</th>
-                      <th>Preço / kg</th>
-                      <th>Custo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {detail.ingredients.map((i) => (
-                      <tr key={i.id}>
-                        <td>{i.name}</td>
-                        <td>
-                          {i.quantity} {i.unit}
-                        </td>
-                        <td>{money(i.price)}</td>
-                        <td>{money(itemCost(i))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <h3>Modo de preparo</h3>
-              {detail.steps.map((s, i) => (
-                <div className="shared-step" key={s.id}>
-                  <b>{String(i + 1).padStart(2, "0")}</b>
-                  <p>{s.text}</p>
-                  {photo(s.photo) && (
-                    <button
-                      className="shared-thumb"
-                      aria-label={`Ampliar foto da etapa ${i + 1}`}
-                      onClick={() => setZoom(photo(s.photo))}
-                    >
-                      <img src={photo(s.photo)} alt={`Etapa ${i + 1}`} />
-                    </button>
+                  {detailTab === "technical" && (
+                    <>
+                      <div>
+                        <span>Custo total</span>
+                        <strong>{money(totalCost(detail))}</strong>
+                      </div>
+                      <div>
+                        <span>Custo por kg</span>
+                        <strong>{costPerKgLabel(detail)}</strong>
+                      </div>
+                    </>
                   )}
+                  <div>
+                    <span>Rendimento</span>
+                    <strong>{yieldLabel(detail)}</strong>
+                  </div>
+                  <div>
+                    <span>Preparo</span>
+                    <strong>{detail.minutes} min</strong>
+                  </div>
                 </div>
-              ))}
-              {detail.notes && (
-                <div className="notes">
-                  <h4>Notas da cozinha</h4>
-                  <p>{detail.notes}</p>
+                {error && <p role="alert">{error}</p>}
+                {photo(detail.cover) && (
+                  <button
+                    className="shared-thumb"
+                    aria-label="Ampliar foto do prato"
+                    onClick={() => setZoom(photo(detail.cover))}
+                  >
+                    <img src={photo(detail.cover)} alt="Prato final" />
+                  </button>
+                )}
+                <h3>Ingredientes</h3>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ingrediente</th>
+                        <th>Quantidade</th>
+                        {detailTab === "technical" && (
+                          <>
+                            <th>Preço / kg</th>
+                            <th>Custo</th>
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.ingredients.map((i) => (
+                        <tr key={i.id}>
+                          <td>{i.name}</td>
+                          <td>
+                            {i.quantity} {i.unit}
+                          </td>
+                          {detailTab === "technical" && (
+                            <>
+                              <td>{money(i.price)}</td>
+                              <td>{money(itemCost(i))}</td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              )}
+                <h3>Modo de preparo</h3>
+                {detail.steps.map((s, i) => (
+                  <div className="shared-step" key={s.id}>
+                    <b>{String(i + 1).padStart(2, "0")}</b>
+                    <p>{s.text}</p>
+                    {photo(s.photo) && (
+                      <button
+                        className="shared-thumb"
+                        aria-label={`Ampliar foto da etapa ${i + 1}`}
+                        onClick={() => setZoom(photo(s.photo))}
+                      >
+                        <img src={photo(s.photo)} alt={`Etapa ${i + 1}`} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {detail.notes && (
+                  <div className="notes">
+                    <h4>Notas da cozinha</h4>
+                    <p>{detail.notes}</p>
+                  </div>
+                )}
+              </div>
             </div>
             {zoom && (
               <dialog

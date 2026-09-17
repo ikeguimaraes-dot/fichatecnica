@@ -120,3 +120,35 @@
     font-size: 44px;
   }
 }
+.shared-detail-tabs {
+  display: flex;
+  gap: 26px;
+  border-bottom: 1px solid #e9dfd5;
+  margin: 24px 0;
+}
+.shared-detail-tabs button {
+  padding: 14px 0;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+  color: #766e67;
+}
+.shared-detail-tabs button[aria-selected="true"] {
+  color: #d65300;
+  border-bottom-color: #ff6500;
+}
+.shared-recipe-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.shared-detail [role="tabpanel"] {
+  animation: fade 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shared-detail [role="tabpanel"] {
+    animation: none;
+  }
+}
+@media print {
+  .shared-detail-tabs {
+    display: none;
+  }
+}

@@ -160,16 +160,14 @@ test("autor cria receita com custo, foto, edita e exclui no livro compartilhado"
   await page.getByLabel("Nome do prato").fill("Linguiça da casa");
   await page.getByLabel("Rendimento final (kg)").fill("2");
   await expect(page.getByLabel("Livro de receitas")).toBeDisabled();
-  await page
-    .getByLabel("Adicionar foto principal")
-    .setInputFiles({
-      name: "foto.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7ioAAAAASUVORK5CYII=",
-        "base64",
-      ),
-    });
+  await page.getByLabel("Adicionar foto principal").setInputFiles({
+    name: "foto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7ioAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await page.getByLabel("Ingrediente 1", { exact: true }).fill("Carne");
   await page.getByLabel("Quantidade 1", { exact: true }).fill("2");
@@ -229,4 +227,54 @@ test("livro compartilhado tem layout móvel sem transbordamento", async ({
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("ficha abre com preços e aba Receita mostra composição e preparo sem valores", async ({
+  page,
+}) => {
+  await login(page, other);
+  await page.route("**/rest/v1/receita_compartilhada?**", (r) =>
+    r.fulfill({
+      json: [
+        {
+          ...sample,
+          book_slug: "linguica",
+          content: { ...sample.content, title: "Lord" },
+        },
+      ],
+    }),
+  );
+  await menu(page);
+  await page.getByRole("button", { name: "Abrir livro Linguiça" }).click();
+  await page.getByRole("button", { name: "Ver receita Lord" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("tab", { name: "Ficha técnica", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.getByRole("tabpanel")).toContainText("R$ 30,00");
+  await dialog.getByRole("tab", { name: "Receita", exact: true }).click();
+  await expect(dialog.getByRole("tabpanel")).not.toContainText("R$");
+  await expect(
+    dialog.getByRole("columnheader", { name: "Preço / kg" }),
+  ).toHaveCount(0);
+  await expect(
+    dialog.getByRole("columnheader", { name: "Custo", exact: true }),
+  ).toHaveCount(0);
+  await expect(dialog.getByRole("tabpanel")).toContainText("Carne");
+  await expect(dialog.getByRole("tabpanel")).toContainText("1 kg");
+  await expect(dialog.getByRole("tabpanel")).toContainText("Misture e modele.");
+  await expect(dialog.getByRole("tabpanel")).toContainText(
+    "Manter refrigerado",
+  );
+  await page.screenshot({
+    path: "test-results/shared-recipe-tab.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.keyboard.press("ArrowLeft");
+  await expect(dialog.getByRole("tabpanel")).toContainText("R$ 30,00");
+  await dialog.getByRole("tab", { name: "Receita", exact: true }).click();
+  await page.getByLabel("Fechar janela").click();
+  await page.getByRole("button", { name: "Ver receita Lord" }).click();
+  await expect(page.getByRole("tabpanel")).toContainText("R$ 30,00");
 });
