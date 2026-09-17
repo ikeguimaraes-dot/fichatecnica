@@ -127,3 +127,13 @@ O endpoint de custos também pode responder HTTP 200 com `{}` quando não há á
 ### Unidades exibidas no Le Chef
 
 Por decisão operacional, `server/everest-units.mjs` exclui os CNPJs com vínculos duplicados do Everest: Pazinato (2), Teem Group (4), AI1 (6), HOS (7), KPH (8) e Rezende (9). Eles não aparecem na biblioteca, não aceitam consultas/edição de preparo pela API e são ignorados nas sincronizações, inclusive na retomada de trabalhos antigos. As cópias já publicadas e os preparos são preservados no banco. As unidades atuais exibidas são Meet & Eat (1), Madonna (3), Match Point (5) e Freneze (10).
+
+### Livros técnicos compartilhados
+
+A seção **Ficha técnica** inclui os livros fixos **Linguiça** (`linguica`) e **Hamburguer** (`hamburguer`). Suas receitas são cadastradas manualmente em `receita_compartilhada`, sem vínculo com snapshots, unidades ou sincronizações do Everest. Todos os usuários cadastrados e autenticados podem consultar receitas e fotos, mesmo sem acesso à integração Everest. Visitantes e sessões anônimas não recebem acesso aos dados.
+
+A edição está restrita à conta editorial `7ec10346-2f07-4ec7-93d0-3b1d1ee307ed` (grupomeeteat@gmail.com), tanto na interface quanto nas políticas RLS. O editor permite ingredientes, quantidades em g/kg, preço por kg, rendimento final em kg, etapas e fotos. Atualizações/exclusões verificam uma revisão UUID para evitar sobrescritas de outra janela. Os livros são fixos e não podem ser excluídos pela interface.
+
+As imagens usam o bucket privado `receita-compartilhada-fotos`: leitura para usuários cadastrados, envio/exclusão pela conta editorial, limite de 10 MB e MIME JPG/PNG/WebP. URLs de leitura duram uma hora e são renovadas ao reabrir o livro. Arquivos sem referência após edição/exclusão permanecem privados para futura limpeza controlada. Receitas e fotos pessoais permanecem em suas tabelas e bucket anteriores, com as permissões originais.
+
+Testes de navegador usam porta própria `4279` (substituível por `LE_CHEF_TEST_PORT`) e não reutilizam servidores existentes, evitando testar acidentalmente outro projeto local.

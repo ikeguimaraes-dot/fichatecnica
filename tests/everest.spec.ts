@@ -288,7 +288,7 @@ test("primeira carga e interface móvel com custos e conferência", async ({
   await login(page);
   await standard(page);
   await menu(page);
-  await expect(page.locator(".everest-unit-book")).toHaveCount(2);
+  await expect(page.locator(".everest-unit-book")).toHaveCount(4);
   await page.screenshot({
     path: "test-results/snapshots-library.png",
     fullPage: true,

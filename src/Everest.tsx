@@ -18,6 +18,7 @@ import {
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import { Modal } from "./Modal";
+import { SharedBook, SharedBookShelf } from "./SharedBooks";
 import { EverestPreparation } from "./EverestPreparation";
 import type {
   EverestRecord,
@@ -859,6 +860,7 @@ export function Everest({
   session: Session | null;
   onLogin: () => void;
 }) {
+  const [sharedBook, setSharedBook] = useState<string | null>(null);
   const [units, setUnits] = useState<EverestUnit[]>([]);
   const [selectedUnit, setSelectedUnit] = useState<EverestUnit | null>(null);
   const [loading, setLoading] = useState(false);
@@ -934,6 +936,15 @@ export function Everest({
     return () => clearInterval(timer);
   }, [session?.user.id, syncing]);
   if (!session) return <UnitRecipes session={null} onLogin={onLogin} />;
+  if (sharedBook)
+    return (
+      <SharedBook
+        key={`${sharedBook}-${session.user.id}`}
+        bookId={sharedBook}
+        session={session}
+        onBack={() => setSharedBook(null)}
+      />
+    );
   if (selectedUnit)
     return (
       <UnitRecipes
@@ -956,14 +967,14 @@ export function Everest({
       <div className="page-heading">
         <div>
           <div className="eyebrow">
-            <span /> FICHAS TÉCNICAS · EVEREST
+            <span /> FICHAS TÉCNICAS
           </div>
           <h1>
             Cada unidade,
             <br />
             <em>seu livro.</em>
           </h1>
-          <p>Escolha uma unidade para abrir suas receitas e fichas técnicas.</p>
+          <p>Receitas das unidades e livros compartilhados da equipe.</p>
         </div>
         <button
           className="secondary"
@@ -974,6 +985,7 @@ export function Everest({
           todas
         </button>
       </div>
+      <SharedBookShelf onOpen={setSharedBook} query={query} />
       <SyncNotice job={job} />
       {syncError && (
         <p className="everest-error" role="alert">
@@ -989,7 +1001,7 @@ export function Everest({
           <Search size={17} />
           <input
             aria-label="Buscar unidade"
-            placeholder="Encontre sua unidade…"
+            placeholder="Encontre um livro ou unidade…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -998,7 +1010,7 @@ export function Everest({
       {error && (
         <div className="everest-error" role="alert">
           <div>
-            <strong>Não foi possível carregar todas as unidades.</strong>
+            <strong>Não foi possível abrir os livros do Everest.</strong>
             <p>{error}</p>
           </div>
           <button className="secondary" onClick={() => loadUnits(true)}>
