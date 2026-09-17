@@ -60,6 +60,7 @@ export type EverestUnit = {
   recipeCount: number;
 };
 export type EverestSyncJob = {
+  costWarningCount?: number;
   id: string;
   status: "queued" | "running" | "completed" | "failed";
   progress: string;

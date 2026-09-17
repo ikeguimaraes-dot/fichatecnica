@@ -550,16 +550,38 @@ test("upload de foto usa URL assinada e salva apenas o caminho privado", async (
     c.getContext("2d")!.fillRect(0, 0, 20, 20);
     return c.toDataURL("image/png").split(",")[1];
   });
-  await page
-    .getByLabel("Foto da etapa 1", { exact: true })
-    .setInputFiles({
-      name: "foto.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(png, "base64"),
-    });
+  await page.getByLabel("Foto da etapa 1", { exact: true }).setInputFiles({
+    name: "foto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(png, "base64"),
+  });
   await expect(
     page.getByRole("button", { name: "Ampliar foto 1 da etapa 1" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Salvar preparo" }).click();
   await expect(page.getByText("Modo de preparo salvo.")).toBeVisible();
+});
+
+test("sincronização concluída mostra itens sem custo como pendência, sem falha geral", async ({
+  page,
+}) => {
+  await login(page);
+  await page.route("**/api/everest?**", (r) =>
+    r.fulfill({
+      json: {
+        records: units,
+        job: { ...job("completed"), costWarningCount: 1 },
+      },
+    }),
+  );
+  await menu(page);
+  await expect(page.getByRole("status")).toContainText(
+    "Atualização concluída com custos pendentes",
+  );
+  await expect(page.getByRole("status")).toContainText(
+    "1 itens retornaram sem custos",
+  );
+  await expect(
+    page.getByRole("button", { name: "Atualizar todas" }),
+  ).toBeEnabled();
 });

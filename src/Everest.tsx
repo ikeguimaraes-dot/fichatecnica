@@ -82,24 +82,37 @@ async function request<T>(
   return data;
 }
 function SyncNotice({ job }: { job: EverestSyncJob | null }) {
-  if (!job || job.status === "completed") return null;
+  if (!job || (job.status === "completed" && !job.costWarningCount))
+    return null;
   return (
     <div
       className={`everest-sync-notice ${job.status === "failed" ? "failed" : ""}`}
       role="status"
     >
-      {job.status !== "failed" && <LoaderCircle size={18} className="spin" />}
+      {job.status !== "failed" && job.status !== "completed" && (
+        <LoaderCircle size={18} className="spin" />
+      )}
       <div>
         <strong>
-          {job.status === "failed"
-            ? "A atualização não foi concluída"
-            : "Atualização em segundo plano"}
+          {job.status === "completed"
+            ? "Atualização concluída com custos pendentes"
+            : job.status === "failed"
+              ? "A atualização não foi concluída"
+              : "Atualização em segundo plano"}
         </strong>
-        <p>{job.status === "failed" ? job.error : job.progress}</p>
+        <p>
+          {job.status === "completed"
+            ? `${job.costWarningCount} itens retornaram sem custos no Everest. As fichas estão disponíveis e os custos ausentes estão sinalizados.`
+            : job.status === "failed"
+              ? job.error
+              : job.progress}
+        </p>
         <small>
-          {job.status === "failed"
-            ? "A última cópia concluída continua disponível. Use Atualizar para tentar novamente."
-            : "Você pode fechar a página. A cópia atual continua disponível até cada livro ficar pronto."}
+          {job.status === "completed"
+            ? "Custos ausentes não foram substituídos por zero. Uma nova atualização consultará esses itens novamente."
+            : job.status === "failed"
+              ? "A última cópia concluída continua disponível. Use Atualizar para tentar novamente."
+              : "Você pode fechar a página. A cópia atual continua disponível até cada livro ficar pronto."}
         </small>
       </div>
     </div>

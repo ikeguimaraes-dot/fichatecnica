@@ -351,3 +351,90 @@ test("fonte confere paginação, unidade e intervalo; não aceita erro como list
     /source_unavailable/,
   );
 });
+
+test("HTTP 200 com objeto vazio é ausência de custos, nunca ausência de cadastros ou erro HTTP", async () => {
+  const env = {
+    EVEREST_USERNAME: "test",
+    EVEREST_PASSWORD: "test",
+    EVEREST_ENTITY: "2024059",
+  };
+  const source = createSource({
+    env,
+    sleep: async () => {},
+    fetchImpl: async () => Response.json({}),
+  });
+  assert.deepEqual(await source("costs", { unit: 7, item: 3851 }), {
+    rows: [],
+  });
+  await assert.rejects(() => source("recipes"), /source_shape/);
+  for (const payload of [null, { error: "failure" }, "invalid"]) {
+    const invalid = createSource({
+      env,
+      sleep: async () => {},
+      fetchImpl: async () => Response.json(payload),
+    });
+    await assert.rejects(
+      () => invalid("costs", { unit: 7, item: 3851 }),
+      /source_shape/,
+    );
+  }
+  const forbidden = createSource({
+    env,
+    sleep: async () => {},
+    fetchImpl: async () => Response.json({}, { status: 403 }),
+  });
+  await assert.rejects(
+    () => forbidden("costs", { unit: 7, item: 3851 }),
+    /source_unavailable/,
+  );
+});
+test("item sem custos mantém valores nulos, registra pendência e avança o checkpoint", async () => {
+  const db = fakeDb({
+    receita_everest_snapshot: [
+      {
+        snapshot_id: "job",
+        unit_id: 7,
+        item_id: 3851,
+        id: 1672,
+        raw_ficha: {
+          id_fichatecnica: 1672,
+          id_item: 3851,
+          qt_producao: 1,
+          sg_unidademedida: "KG",
+          itens: [],
+        },
+      },
+    ],
+  });
+  const original = db.from;
+  const writes = [];
+  db.from = (table) => {
+    const q = original(table);
+    q.upsert = async (rows) => {
+      writes.push(...rows);
+      return { data: null, error: null };
+    };
+    return q;
+  };
+  const result = await syncStep({
+    db,
+    source: async () => ({ rows: [] }),
+    job: {
+      id: "job",
+      state: {
+        phase: "costs",
+        targets: [{ id: 7, name: "HOS" }],
+        unitIndex: 0,
+        items: [3851, 3852],
+        itemIndex: 0,
+      },
+    },
+  });
+  assert.equal(result.state.itemIndex, 1);
+  assert.equal(result.state.phase, "costs");
+  assert.deepEqual(result.state.costWarnings, [{ unit: 7, item: 3851 }]);
+  assert.equal(writes[0].checked, true);
+  assert.equal(writes[0].detail.totalCost, null);
+  assert.equal(writes[0].detail.costStatus, "unavailable");
+  assert.deepEqual(writes[0].raw_cost, []);
+});

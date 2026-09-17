@@ -15,6 +15,7 @@ export const publicJob = (j) =>
         requestedUnit: j.requested_unit,
         createdAt: j.created_at,
         finishedAt: j.finished_at,
+        costWarningCount: j.state?.costWarnings?.length || 0,
       };
 export async function latestJob(db) {
   return publicJob(
@@ -22,7 +23,7 @@ export async function latestJob(db) {
       db
         .from("receita_everest_sync")
         .select(
-          "id,status,progress,error,requested_unit,created_at,finished_at",
+          "id,status,progress,error,requested_unit,created_at,finished_at,state",
         )
         .order("created_at", { ascending: false })
         .limit(1)

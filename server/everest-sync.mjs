@@ -60,6 +60,16 @@ export function createSource({
           : "source_unavailable",
       );
     const rows = await response.json();
+    // Everest can return HTTP 200 with {} when this unit has no cost tree.
+    // Accept only this precise empty response for costs; other shapes remain errors.
+    if (
+      kind === "costs" &&
+      rows &&
+      typeof rows === "object" &&
+      !Array.isArray(rows) &&
+      Object.keys(rows).length === 0
+    )
+      return { rows: [] };
     if (!Array.isArray(rows)) throw Error("source_shape");
     if (kind === "costs") return { rows };
     let total = Number(response.headers.get("x-paginas"));
@@ -228,6 +238,9 @@ export async function syncStep({
         checked: true,
       })),
     );
+    if (!rawCost.length) {
+      s.costWarnings = [...(s.costWarnings || []), { unit: unit.id, item }];
+    }
     s.itemIndex++;
     progress = `${unit.name} · custos: ${s.itemIndex} de ${s.items.length} itens · unidade ${s.unitIndex + 1} de ${s.targets.length}`;
     if (s.itemIndex >= s.items.length) s.phase = "publish";
@@ -302,13 +315,35 @@ export async function runWorker({
       }),
     );
     return { done: false, steps };
-  } catch {
+  } catch (error) {
+    const phase = job.state.phase;
+    const unit = job.state.targets?.[job.state.unitIndex]?.id;
+    const item = job.state.items?.[job.state.itemIndex];
+    const known = {
+      source_shape: "O Everest retornou dados em formato inesperado",
+      source_rate_limit: "O Everest limitou temporariamente as consultas",
+      source_unavailable: "O Everest não concluiu a consulta",
+      source_pagination: "O Everest retornou paginação inválida",
+      source_membership: "O Everest retornou vínculos de outra unidade",
+      database_operation: "Não foi possível gravar ou consultar o banco",
+      lost_lease: "A execução perdeu sua reserva de processamento",
+    };
+    const reason =
+      error?.name === "TimeoutError"
+        ? "O Everest excedeu o tempo de resposta"
+        : known[error?.message] || "A consulta foi interrompida";
+    const location = [
+      phase && `etapa ${phase}`,
+      unit && `unidade ${unit}`,
+      item && `item ${item}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
     await checked(
       db.rpc("receita_everest_failure", {
         p_id: job.id,
         p_lease: job.lease_token,
-        p_error:
-          "A consulta ao Everest ou ao banco foi interrompida. A versão publicada foi preservada.",
+        p_error: `${reason} (${location}). A versão publicada foi preservada.`,
       }),
     );
     return { retry: true, steps };
