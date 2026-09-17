@@ -393,7 +393,7 @@ test("item sem custos mantém valores nulos, registra pendência e avança o che
     receita_everest_snapshot: [
       {
         snapshot_id: "job",
-        unit_id: 7,
+        unit_id: 1,
         item_id: 3851,
         id: 1672,
         raw_ficha: {
@@ -423,7 +423,7 @@ test("item sem custos mantém valores nulos, registra pendência e avança o che
       id: "job",
       state: {
         phase: "costs",
-        targets: [{ id: 7, name: "HOS" }],
+        targets: [{ id: 1, name: "MEET" }],
         unitIndex: 0,
         items: [3851, 3852],
         itemIndex: 0,
@@ -432,9 +432,57 @@ test("item sem custos mantém valores nulos, registra pendência e avança o che
   });
   assert.equal(result.state.itemIndex, 1);
   assert.equal(result.state.phase, "costs");
-  assert.deepEqual(result.state.costWarnings, [{ unit: 7, item: 3851 }]);
+  assert.deepEqual(result.state.costWarnings, [{ unit: 1, item: 3851 }]);
   assert.equal(writes[0].checked, true);
   assert.equal(writes[0].detail.totalCost, null);
   assert.equal(writes[0].detail.costStatus, "unavailable");
   assert.deepEqual(writes[0].raw_cost, []);
+});
+
+test("biblioteca oculta os seis CNPJs duplicados e bloqueia atualização direta", async () => {
+  const db = fakeDb({
+    receita_everest_unidade: Array.from({ length: 10 }, (_, i) => ({
+      id: i + 1,
+      name: String(i + 1),
+      enabled: true,
+    })),
+  });
+  const handler = createSnapshotHandler({ getDb: () => db, authorize: access });
+  const list = await invoke(handler);
+  assert.deepEqual(
+    list.data.records.map((u) => u.id).sort((a, b) => a - b),
+    [1, 3, 5, 10],
+  );
+  for (const unitId of [2, 4, 6, 7, 8, 9]) {
+    assert.equal(
+      (await invoke(handler, { method: "POST", body: { unitId } })).status,
+      404,
+    );
+    assert.equal(
+      (await invoke(handler, { url: `/api/everest?kind=book&unit=${unitId}` }))
+        .status,
+      404,
+    );
+  }
+});
+test("job antigo pula unidade excluída sem consultar Everest ou publicar dados", async () => {
+  const result = await syncStep({
+    db: {},
+    source: () => {
+      throw Error("must not fetch");
+    },
+    job: {
+      id: "job",
+      state: {
+        phase: "costs",
+        targets: [{ id: 7 }, { id: 10 }],
+        unitIndex: 0,
+        items: [3851],
+        itemIndex: 0,
+      },
+    },
+  });
+  assert.equal(result.state.unitIndex, 1);
+  assert.equal(result.state.phase, "members");
+  assert.equal(result.state.itemIndex, undefined);
 });

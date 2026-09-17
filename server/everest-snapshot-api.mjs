@@ -1,3 +1,4 @@
+import { visibleEverestUnit } from "./everest-units.mjs";
 import { database, checked, allRows, authorized } from "./everest-store.mjs";
 import { normalizeFicha, attachCosts } from "./everest.mjs";
 const validId = (value) =>
@@ -15,7 +16,9 @@ export const publicJob = (j) =>
         requestedUnit: j.requested_unit,
         createdAt: j.created_at,
         finishedAt: j.finished_at,
-        costWarningCount: j.state?.costWarnings?.length || 0,
+        costWarningCount:
+          j.state?.costWarnings?.filter((w) => visibleEverestUnit(w.unit))
+            .length || 0,
       };
 export async function latestJob(db) {
   return publicJob(
@@ -67,6 +70,10 @@ export function createSnapshotHandler({
         )
           return send(400, { error: "Unidade inválida." });
         if (body.unitId != null) {
+          if (!visibleEverestUnit(body.unitId))
+            return send(404, {
+              error: "Unidade não disponível na biblioteca.",
+            });
           const exists = await checked(
             db
               .from("receita_everest_unidade")
@@ -108,12 +115,14 @@ export function createSnapshotHandler({
           latestJob(db),
         ]);
         return send(200, {
-          records: units.map((u) => ({
-            id: u.id,
-            name: u.name,
-            syncedAt: u.synced_at,
-            recipeCount: u.recipe_count,
-          })),
+          records: units
+            .filter((u) => visibleEverestUnit(u.id))
+            .map((u) => ({
+              id: u.id,
+              name: u.name,
+              syncedAt: u.synced_at,
+              recipeCount: u.recipe_count,
+            })),
           job,
           totalPages: 1,
           page: 1,
@@ -125,6 +134,8 @@ export function createSnapshotHandler({
       )
         return send(400, { error: "Unidade inválida." });
       const unitId = Number(url.searchParams.get("unit"));
+      if (!visibleEverestUnit(unitId))
+        return send(404, { error: "Unidade não disponível na biblioteca." });
       const unit = await checked(
         db
           .from("receita_everest_unidade")

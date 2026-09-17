@@ -1,3 +1,4 @@
+import { visibleEverestUnit } from "./everest-units.mjs";
 import { normalizeFicha, attachCosts } from "./everest.mjs";
 import { checked, allRows, upsertChunks } from "./everest-store.mjs";
 const positive = (n) => Number.isSafeInteger(Number(n)) && Number(n) > 0;
@@ -101,6 +102,24 @@ export async function syncStep({
   const s = structuredClone(job.state);
   let progress = job.progress;
   const id = job.id;
+  // A deployment may resume an older job whose targets still include hidden units.
+  if (
+    ["members", "prepare", "costs", "publish"].includes(s.phase) &&
+    !visibleEverestUnit(s.targets[s.unitIndex]?.id)
+  ) {
+    s.unitIndex++;
+    delete s.items;
+    delete s.itemIndex;
+    delete s.members;
+    s.phase = s.unitIndex >= s.targets.length ? "complete" : "members";
+    s.page = 1;
+    s.members = [];
+    return {
+      done: false,
+      state: s,
+      progress: "Continuando atualização das unidades da biblioteca",
+    };
+  }
   if (s.phase === "catalog") {
     const { rows, total } = await source("catalog", { page: s.page });
     s.units = [
@@ -143,8 +162,11 @@ export async function syncStep({
         else await checked(db.from("receita_everest_unidade").insert(u));
       }
       s.targets = job.requested_unit
-        ? s.units.filter((u) => u.id === job.requested_unit)
-        : s.units;
+        ? s.units.filter(
+            (u) => u.id === job.requested_unit && visibleEverestUnit(u.id),
+          )
+        : s.units.filter((u) => visibleEverestUnit(u.id));
+      if (!s.targets.length) throw Error("removed_unit");
       s.phase = "recipes";
       s.page = 1;
     }

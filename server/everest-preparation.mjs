@@ -1,3 +1,4 @@
+import { visibleEverestUnit } from "./everest-units.mjs";
 import { randomUUID } from "node:crypto";
 import { database, checked, authorized } from "./everest-store.mjs";
 export const BUCKET = "receita-everest-preparo";
@@ -83,6 +84,8 @@ export function createPreparationHandler({
         ficha = url.searchParams.get("id");
       if (!id(unit) || !id(ficha))
         return send(400, { error: "Ficha ou unidade inválida." });
+      if (!visibleEverestUnit(unit))
+        return send(404, { error: "Unidade não disponível na biblioteca." });
       const db = getDb();
       const book = await checked(
         db
