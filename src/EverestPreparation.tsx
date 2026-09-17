@@ -106,13 +106,9 @@ export function EverestPreparation({
   onDirty,
   adapter,
   canEdit = true,
-  recipeIntro,
-  recipeFooter,
 }: {
   adapter?: PreparationAdapter;
   canEdit?: boolean;
-  recipeIntro?: ReactNode;
-  recipeFooter?: ReactNode;
   detail: EverestDetail;
   unit: EverestUnit;
   children: ReactNode;
@@ -141,7 +137,7 @@ export function EverestPreparation({
     mounted = useRef(true);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved.content);
   const content = editing ? draft : saved.content;
-  const showPrintCosts = !adapter || tab === "technical";
+  const showPrintCosts = tab === "technical";
   async function load() {
     setLoading(true);
     setError("");
@@ -387,7 +383,7 @@ export function EverestPreparation({
             onClick={() => setTab("preparation")}
           >
             <ChefHat size={17} />
-            {adapter ? "Receita" : "Modo de preparo"}
+            Modo de preparo
           </button>
         </div>
         <button
@@ -402,7 +398,7 @@ export function EverestPreparation({
       {preview && (
         <section className="prep-preview">
           <div>
-            <strong>Ficha completa · uma folha A4</strong>
+            <strong>Ficha completa · A4 paisagem</strong>
             <p>
               {dirty
                 ? "Prévia das alterações ainda não salvas. Salve para imprimir."
@@ -421,7 +417,8 @@ export function EverestPreparation({
               Layout compacto
             </label>
             <p className="prep-print-hint">
-              Imprima em A4, escala 100%, sem cabeçalhos e rodapés do navegador.
+              Imprima em A4 paisagem, escala 100%, sem cabeçalhos e rodapés do
+              navegador.
             </p>
           </div>
           <button
@@ -456,7 +453,35 @@ export function EverestPreparation({
         aria-labelledby="preparation-tab"
         hidden={tab !== "preparation"}
       >
-        {recipeIntro}
+        <div className="prep-ingredients">
+          <p>
+            Rendimento:{" "}
+            <strong>
+              {detail.yieldKg == null
+                ? "não informado"
+                : `${number(detail.yieldKg)} kg`}
+            </strong>
+          </p>
+          <h3>Ingredientes</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Ingrediente / componente</th>
+                <th>Quantidade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detail.components.map((c, i) => (
+                <tr key={i}>
+                  <td>{c.name}</td>
+                  <td>
+                    {number(c.quantity)} {c.unit}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
         <div className="prep-heading">
           <div>
             <div className="eyebrow">O SABER DA SUA COZINHA</div>
@@ -695,7 +720,12 @@ export function EverestPreparation({
             )}
           </>
         )}
-        {recipeFooter}
+        {detail.notes && (
+          <div className="notes">
+            <h4>Notas da cozinha</h4>
+            <p>{detail.notes}</p>
+          </div>
+        )}
       </section>
       {createPortal(
         <div
@@ -740,7 +770,7 @@ export function EverestPreparation({
                 : !imagesReady
                   ? "Aguardando fotos. Se não carregarem, reabra a ficha antes de imprimir."
                   : fits
-                    ? "Tudo cabe em uma folha A4. Imprima em escala 100%, sem cabeçalhos e rodapés."
+                    ? "Tudo cabe em uma folha A4 paisagem. Imprima em escala 100%, sem cabeçalhos e rodapés."
                     : "Ultrapassa uma folha: use o layout compacto, resuma as etapas ou reduza as fotos."}
             </p>
             <label>
@@ -810,81 +840,88 @@ export function EverestPreparation({
                   : "Custos incompletos ou não confirmados no Everest."}
               </p>
             )}
-            <h2>01 / Ingredientes</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Ingrediente / componente</th>
-                  <th>Quantidade</th>
-                  {showPrintCosts && (
-                    <>
-                      <th>Custo / un.</th>
-                      <th>Custo na receita</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {detail.components.map((c, i) => (
-                  <tr key={i}>
-                    <td>{c.name}</td>
-                    <td>
-                      {number(c.quantity)} {c.unit}
-                    </td>
-                    {showPrintCosts && (
-                      <>
-                        <td>{money(c.unitCost)}</td>
-                        <td>{money(c.appliedCost)}</td>
-                      </>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <h2>02 / Modo de preparo</h2>
-            {loading ? (
-              <p>Carregando preparo…</p>
-            ) : error && !editing ? (
-              <p>Preparo indisponível. Reabra a ficha antes de imprimir.</p>
-            ) : content.steps.length ? (
-              <ol>
-                {content.steps.map((s, i) => (
-                  <li key={i}>
-                    <div>
-                      <b>
-                        {String(i + 1).padStart(2, "0")}
-                        {s.title ? ` · ${s.title}` : ""}
-                      </b>
-                      <p>{s.text}</p>
-                    </div>
-                    {!!s.photos.length && (
-                      <div className="prep-paper-photos">
-                        {s.photos.map((p, j) =>
-                          photos[p] ? (
-                            <img
-                              key={p}
-                              src={photos[p]}
-                              alt={`Etapa ${i + 1}, foto ${j + 1}`}
-                            />
-                          ) : (
-                            <span key={p}>Foto indisponível</span>
-                          ),
+            <div className="prep-paper-columns">
+              <section>
+                <h2>01 / Ingredientes</h2>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Ingrediente / componente</th>
+                      <th>Quantidade</th>
+                      {showPrintCosts && (
+                        <>
+                          <th>Custo / un.</th>
+                          <th>Custo na receita</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.components.map((c, i) => (
+                      <tr key={i}>
+                        <td>{c.name}</td>
+                        <td>
+                          {number(c.quantity)} {c.unit}
+                        </td>
+                        {showPrintCosts && (
+                          <>
+                            <td>{money(c.unitCost)}</td>
+                            <td>{money(c.appliedCost)}</td>
+                          </>
                         )}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ol>
-            ) : (
-              <p>
-                {detail.instructions || "Modo de preparo ainda não cadastrado."}
-              </p>
-            )}
-            {detail.notes && (
-              <p className="prep-paper-notes">
-                <b>Observações:</b> {detail.notes}
-              </p>
-            )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+              <section>
+                <h2>02 / Modo de preparo</h2>
+                {loading ? (
+                  <p>Carregando preparo…</p>
+                ) : error && !editing ? (
+                  <p>Preparo indisponível. Reabra a ficha antes de imprimir.</p>
+                ) : content.steps.length ? (
+                  <ol>
+                    {content.steps.map((s, i) => (
+                      <li key={i}>
+                        <div>
+                          <b>
+                            {String(i + 1).padStart(2, "0")}
+                            {s.title ? ` · ${s.title}` : ""}
+                          </b>
+                          <p>{s.text}</p>
+                        </div>
+                        {!!s.photos.length && (
+                          <div className="prep-paper-photos">
+                            {s.photos.map((p, j) =>
+                              photos[p] ? (
+                                <img
+                                  key={p}
+                                  src={photos[p]}
+                                  alt={`Etapa ${i + 1}, foto ${j + 1}`}
+                                />
+                              ) : (
+                                <span key={p}>Foto indisponível</span>
+                              ),
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p>
+                    {detail.instructions ||
+                      "Modo de preparo ainda não cadastrado."}
+                  </p>
+                )}
+                {detail.notes && (
+                  <p className="prep-paper-notes">
+                    <b>Observações:</b> {detail.notes}
+                  </p>
+                )}
+              </section>
+            </div>
             <footer>
               Le Chef · {unit.name} · Validade:{" "}
               {detail.shelfLifeDays == null

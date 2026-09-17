@@ -190,7 +190,7 @@ test("autor cria receita com custo, foto, edita e exclui no livro compartilhado"
     .getByRole("button", { name: "Ver receita Linguiça da casa" })
     .click();
   await expect(page.getByRole("dialog")).toContainText("R$ 60,00");
-  await page.getByRole("tab", { name: "Receita", exact: true }).click();
+  await page.getByRole("tab", { name: "Modo de preparo", exact: true }).click();
   await page.getByRole("button", { name: "Ampliar prato final" }).click();
   await expect(page.getByAltText("Foto do preparo ampliada")).toBeVisible();
   await page.keyboard.press("Escape");
@@ -231,7 +231,7 @@ test("livro compartilhado tem layout móvel sem transbordamento", async ({
   ).toBe(true);
 });
 
-test("ficha abre com preços e aba Receita mostra composição e preparo sem valores", async ({
+test("ficha abre com preços e aba Modo de preparo mostra composição e preparo sem valores", async ({
   page,
 }) => {
   await login(page, other);
@@ -254,7 +254,9 @@ test("ficha abre com preços e aba Receita mostra composição e preparo sem val
     dialog.getByRole("tab", { name: "Ficha técnica", exact: true }),
   ).toHaveAttribute("aria-selected", "true");
   await expect(dialog.getByRole("tabpanel")).toContainText("R$ 30,00");
-  await dialog.getByRole("tab", { name: "Receita", exact: true }).click();
+  await dialog
+    .getByRole("tab", { name: "Modo de preparo", exact: true })
+    .click();
   await expect(dialog.getByRole("tabpanel")).not.toContainText("R$");
   await expect(
     dialog.getByRole("columnheader", { name: "Preço / kg" }),
@@ -275,13 +277,15 @@ test("ficha abre com preços e aba Receita mostra composição e preparo sem val
   });
   await page.keyboard.press("ArrowLeft");
   await expect(dialog.getByRole("tabpanel")).toContainText("R$ 30,00");
-  await dialog.getByRole("tab", { name: "Receita", exact: true }).click();
+  await dialog
+    .getByRole("tab", { name: "Modo de preparo", exact: true })
+    .click();
   await page.getByLabel("Fechar janela").click();
   await page.getByRole("button", { name: "Ver receita Lord" }).click();
   await expect(page.getByRole("tabpanel")).toContainText("R$ 30,00");
 });
 
-test("preparo compartilhado usa editor das unidades, preserva custos e imprime Receita em uma A4 sem preços", async ({
+test("preparo compartilhado usa editor das unidades, preserva custos e imprime preparo em uma A4 horizontal sem preços", async ({
   page,
 }) => {
   await login(page);
@@ -330,7 +334,7 @@ test("preparo compartilhado usa editor das unidades, preserva custos e imprime R
   await menu(page);
   await page.getByRole("button", { name: "Abrir livro Linguiça" }).click();
   await page.getByRole("button", { name: "Ver receita Lord" }).click();
-  await page.getByRole("tab", { name: "Receita", exact: true }).click();
+  await page.getByRole("tab", { name: "Modo de preparo", exact: true }).click();
   await expect(page.locator(".prep-panel")).toContainText("Misture e modele.");
   await page.getByRole("button", { name: "Editar preparo" }).click();
   await page.getByLabel("Título da etapa 1").fill("Misturar");
@@ -346,13 +350,11 @@ test("preparo compartilhado usa editor das unidades, preserva custos e imprime R
     c.getContext("2d")!.fillRect(0, 0, 20, 20);
     return c.toDataURL("image/png").split(",")[1];
   });
-  await page
-    .getByLabel("Foto da etapa 2", { exact: true })
-    .setInputFiles({
-      name: "foto.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(png, "base64"),
-    });
+  await page.getByLabel("Foto da etapa 2", { exact: true }).setInputFiles({
+    name: "foto.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(png, "base64"),
+  });
   await expect(
     page.getByRole("button", { name: "Ampliar foto 1 da etapa 2" }),
   ).toBeVisible();
@@ -376,6 +378,12 @@ test("preparo compartilhado usa editor das unidades, preserva custos e imprime R
     path: "test-results/shared-standard-a4.pdf",
     preferCSSPageSize: true,
   });
+  const mediaBox = pdf
+    .toString("latin1")
+    .match(/\/MediaBox\s*\[0 0 ([\d.]+) ([\d.]+)\]/);
+  expect(mediaBox).not.toBeNull();
+  expect(Number(mediaBox![1])).toBeCloseTo(842, 0);
+  expect(Number(mediaBox![2])).toBeCloseTo(595.28, 0);
   expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(
     1,
   );
@@ -388,7 +396,7 @@ test("preparo compartilhado usa editor das unidades, preserva custos e imprime R
   await preview.getByRole("button", { name: "Voltar à ficha" }).click();
   await page.getByLabel("Fechar janela").click();
   await page.getByRole("button", { name: "Ver receita Lord" }).click();
-  await page.getByRole("tab", { name: "Receita", exact: true }).click();
+  await page.getByRole("tab", { name: "Modo de preparo", exact: true }).click();
   await expect(page.locator(".prep-steps")).toContainText(
     "Resfrie antes de servir.",
   );

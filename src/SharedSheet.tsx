@@ -247,21 +247,6 @@ export function SharedSheet({
           onDirty={(d) => {
             dirty.current = d;
           }}
-          recipeIntro={
-            <>
-              {summary}
-              <h3>Ingredientes</h3>
-              {ingredients(false)}
-            </>
-          }
-          recipeFooter={
-            recipe.notes ? (
-              <div className="notes">
-                <h4>Notas da cozinha</h4>
-                <p>{recipe.notes}</p>
-              </div>
-            ) : undefined
-          }
         >
           <div className="detail-actions">
             {canEdit && (

@@ -421,6 +421,12 @@ test("preparo salva etapas, reordena e preserva ao reabrir; fotos ampliam e A4 t
     preferCSSPageSize: true,
     printBackground: true,
   });
+  const mediaBox = pdf
+    .toString("latin1")
+    .match(/\/MediaBox\s*\[0 0 ([\d.]+) ([\d.]+)\]/);
+  expect(mediaBox).not.toBeNull();
+  expect(Number(mediaBox![1])).toBeCloseTo(842, 0);
+  expect(Number(mediaBox![2])).toBeCloseTo(595.28, 0);
   expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(
     1,
   );

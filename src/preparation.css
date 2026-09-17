@@ -332,7 +332,7 @@
   position: fixed;
   left: -20000px;
   top: 0;
-  width: 190mm;
+  width: 277mm;
   pointer-events: none;
   z-index: -1;
 }
@@ -351,8 +351,8 @@
 }
 .prep-paper {
   box-sizing: border-box;
-  width: 190mm;
-  height: 277mm;
+  width: 277mm;
+  height: 190mm;
   flex-shrink: 0;
   background: #fff;
   padding: 5mm;
@@ -598,8 +598,8 @@
     height: 64px;
   }
 }
-@page {
-  size: A4 portrait;
+@page prep-sheet {
+  size: A4 landscape;
   margin: 10mm;
 }
 @media print {
@@ -609,7 +609,7 @@
   .prep-print-host {
     display: block !important;
     position: static !important;
-    width: 190mm !important;
+    width: 277mm !important;
     padding: 0 !important;
     margin: 0 !important;
     overflow: visible !important;
@@ -621,6 +621,7 @@
     display: none !important;
   }
   .prep-paper {
+    page: prep-sheet;
     margin: 0 !important;
     box-shadow: none !important;
     break-after: avoid;
@@ -640,5 +641,41 @@
 @media (prefers-reduced-motion: reduce) {
   .prep-thumbnail {
     transition: none;
+  }
+}
+
+.prep-ingredients {
+  margin-bottom: 28px;
+}
+.prep-ingredients table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.prep-ingredients th,
+.prep-ingredients td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee7df;
+  text-align: left;
+}
+.prep-ingredients th:last-child,
+.prep-ingredients td:last-child {
+  text-align: right;
+}
+.prep-paper-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 7mm;
+}
+.prep-paper-columns > section {
+  min-width: 0;
+}
+.prep-paper-columns > section + section {
+  border-left: 1px solid #e5ded5;
+  padding-left: 7mm;
+}
+@media screen and (max-width: 1120px) {
+  .prep-print-host.is-preview {
+    align-items: flex-start;
   }
 }
