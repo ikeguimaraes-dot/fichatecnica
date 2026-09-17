@@ -18,12 +18,17 @@ import { supabase } from "./supabase";
 import type { EverestDetail, EverestUnit } from "./everest-types";
 import "./preparation.css";
 type Step = { title: string; text: string; photos: string[] };
-type Content = { steps: Step[]; finalPhoto: string | null };
-type Preparation = {
+export type Content = { steps: Step[]; finalPhoto: string | null };
+export type Preparation = {
   content: Content;
   revision: string | null;
   updatedAt: string | null;
   photos: Record<string, string>;
+};
+export type PreparationAdapter = {
+  load: () => Promise<Preparation>;
+  save: (content: Content, revision: string | null) => Promise<Preparation>;
+  upload: (blob: Blob) => Promise<string>;
 };
 const empty: Preparation = {
   content: { steps: [], finalPhoto: null },
@@ -99,7 +104,15 @@ export function EverestPreparation({
   unit,
   children,
   onDirty,
+  adapter,
+  canEdit = true,
+  recipeIntro,
+  recipeFooter,
 }: {
+  adapter?: PreparationAdapter;
+  canEdit?: boolean;
+  recipeIntro?: ReactNode;
+  recipeFooter?: ReactNode;
   detail: EverestDetail;
   unit: EverestUnit;
   children: ReactNode;
@@ -128,11 +141,12 @@ export function EverestPreparation({
     mounted = useRef(true);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved.content);
   const content = editing ? draft : saved.content;
+  const showPrintCosts = !adapter || tab === "technical";
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const data = await call(unit.id, detail.id);
+      const data = await (adapter ? adapter.load() : call(unit.id, detail.id));
       if (mounted.current) {
         setSaved(data);
         setDraft(data.content);
@@ -200,7 +214,7 @@ export function EverestPreparation({
       });
       cancelAnimationFrame(frame);
     };
-  }, [preview, compact, content, photos, detail]);
+  }, [preview, compact, content, photos, detail, tab]);
   const change = (i: number, patch: Partial<Step>) =>
     setDraft((d) => ({
       ...d,
@@ -228,14 +242,21 @@ export function EverestPreparation({
           "Limite de 24 fotos por ficha. Remova uma foto antes de adicionar outra.",
         );
       const blob = await compress(file);
-      const { path, token } = await call(unit.id, detail.id, "POST", {
-        action: "upload",
-      });
-      const { error: uploadError } = await supabase.storage
-        .from("receita-everest-preparo")
-        .uploadToSignedUrl(path, token, blob, { contentType: "image/jpeg" });
-      if (uploadError)
-        throw Error("Não foi possível enviar a foto. Tente novamente.");
+      let path: string;
+      if (adapter) path = await adapter.upload(blob);
+      else {
+        const signed = await call(unit.id, detail.id, "POST", {
+          action: "upload",
+        });
+        path = signed.path;
+        const { error: uploadError } = await supabase.storage
+          .from("receita-everest-preparo")
+          .uploadToSignedUrl(path, signed.token, blob, {
+            contentType: "image/jpeg",
+          });
+        if (uploadError)
+          throw Error("Não foi possível enviar a foto. Tente novamente.");
+      }
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const r = new FileReader();
         r.onload = () => resolve(String(r.result));
@@ -266,10 +287,12 @@ export function EverestPreparation({
     setError("");
     setNotice("");
     try {
-      const data = await call(unit.id, detail.id, "PUT", {
-        content: draft,
-        revision: saved.revision,
-      });
+      const data = await (adapter
+        ? adapter.save(draft, saved.revision)
+        : call(unit.id, detail.id, "PUT", {
+            content: draft,
+            revision: saved.revision,
+          }));
       if (mounted.current) {
         setSaved(data);
         setDraft(data.content);
@@ -326,12 +349,31 @@ export function EverestPreparation({
   return (
     <>
       <div className="prep-navigation">
-        <div role="tablist" aria-label="Conteúdo da ficha">
+        <div
+          role="tablist"
+          aria-label="Conteúdo da ficha"
+          onKeyDown={(e) => {
+            if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+              e.preventDefault();
+              const next =
+                e.key === "Home"
+                  ? "technical"
+                  : e.key === "End"
+                    ? "preparation"
+                    : tab === "technical"
+                      ? "preparation"
+                      : "technical";
+              setTab(next);
+              document.getElementById(`${next}-tab`)?.focus();
+            }
+          }}
+        >
           <button
             role="tab"
             id="technical-tab"
             aria-controls="technical-panel"
             aria-selected={tab === "technical"}
+            tabIndex={tab === "technical" ? 0 : -1}
             onClick={() => setTab("technical")}
           >
             Ficha técnica
@@ -341,10 +383,11 @@ export function EverestPreparation({
             id="preparation-tab"
             aria-controls="preparation-panel"
             aria-selected={tab === "preparation"}
+            tabIndex={tab === "preparation" ? 0 : -1}
             onClick={() => setTab("preparation")}
           >
             <ChefHat size={17} />
-            Modo de preparo
+            {adapter ? "Receita" : "Modo de preparo"}
           </button>
         </div>
         <button
@@ -413,16 +456,18 @@ export function EverestPreparation({
         aria-labelledby="preparation-tab"
         hidden={tab !== "preparation"}
       >
+        {recipeIntro}
         <div className="prep-heading">
           <div>
             <div className="eyebrow">O SABER DA SUA COZINHA</div>
             <h3>Do primeiro corte à finalização.</h3>
             <p>
-              Instruções desta unidade, preservadas a cada atualização do
-              Everest.
+              {adapter
+                ? "Etapas e fotos compartilhadas com a equipe."
+                : "Instruções desta unidade, preservadas a cada atualização do Everest."}
             </p>
           </div>
-          {!loading && !editing && !error && (
+          {canEdit && !loading && !editing && !error && (
             <button
               className="secondary"
               onClick={() => {
@@ -650,6 +695,7 @@ export function EverestPreparation({
             )}
           </>
         )}
+        {recipeFooter}
       </section>
       {createPortal(
         <div
@@ -728,7 +774,9 @@ export function EverestPreparation({
                 <span>FICHA TÉCNICA & PREPARO</span>
                 <h1>{detail.name}</h1>
                 <p>
-                  {unit.name} · Ficha #{detail.id} · V{detail.version ?? "—"}
+                  {adapter
+                    ? `${unit.name} · Receita compartilhada`
+                    : `${unit.name} · Ficha #${detail.id} · V${detail.version ?? "—"}`}
                 </p>
               </div>
               {content.finalPhoto && photos[content.finalPhoto] && (
@@ -744,14 +792,18 @@ export function EverestPreparation({
                     : `${number(detail.yieldKg)} kg`}
                 </b>
               </span>
-              <span>
-                Custo total <b>{money(detail.totalCost)}</b>
-              </span>
-              <span>
-                Custo / kg <b>{money(detail.costPerKg)}</b>
-              </span>
+              {showPrintCosts && (
+                <>
+                  <span>
+                    Custo total <b>{money(detail.totalCost)}</b>
+                  </span>
+                  <span>
+                    Custo / kg <b>{money(detail.costPerKg)}</b>
+                  </span>
+                </>
+              )}
             </div>
-            {detail.costStatus !== "available" && (
+            {showPrintCosts && detail.costStatus !== "available" && (
               <p className="prep-paper-warning">
                 {detail.costStatus === "review"
                   ? "Custos a conferir: há ingredientes zerados ou sem custo médio na origem."
@@ -764,8 +816,12 @@ export function EverestPreparation({
                 <tr>
                   <th>Ingrediente / componente</th>
                   <th>Quantidade</th>
-                  <th>Custo / un.</th>
-                  <th>Custo na receita</th>
+                  {showPrintCosts && (
+                    <>
+                      <th>Custo / un.</th>
+                      <th>Custo na receita</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -775,8 +831,12 @@ export function EverestPreparation({
                     <td>
                       {number(c.quantity)} {c.unit}
                     </td>
-                    <td>{money(c.unitCost)}</td>
-                    <td>{money(c.appliedCost)}</td>
+                    {showPrintCosts && (
+                      <>
+                        <td>{money(c.unitCost)}</td>
+                        <td>{money(c.appliedCost)}</td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -830,7 +890,10 @@ export function EverestPreparation({
               {detail.shelfLifeDays == null
                 ? "não informada"
                 : `${detail.shelfLifeDays} dias`}{" "}
-              · Custos da cópia salva do Everest
+              ·{" "}
+              {adapter
+                ? "Cadastro manual · Le Chef"
+                : "Custos da cópia salva do Everest"}
             </footer>
           </article>
         </div>,

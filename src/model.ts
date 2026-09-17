@@ -5,7 +5,13 @@ export type Ingredient = {
   unit: "g" | "kg";
   price: number;
 };
-export type Step = { id: string; text: string; photo: string };
+export type Step = {
+  id: string;
+  text: string;
+  photo: string;
+  title?: string;
+  photos?: string[];
+};
 export type Recipe = {
   id: string;
   title: string;

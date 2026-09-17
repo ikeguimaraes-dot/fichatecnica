@@ -130,7 +130,15 @@ export function Editor({
           ? {
               ...prev,
               steps: prev.steps.map((s) =>
-                s.id === stepId ? { ...s, photo: path } : s,
+                s.id === stepId
+                  ? {
+                      ...s,
+                      photo: path,
+                      ...(s.photos
+                        ? { photos: [path, ...s.photos.slice(1)] }
+                        : {}),
+                    }
+                  : s,
               ),
             }
           : { ...prev, cover: path },

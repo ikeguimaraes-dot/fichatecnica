@@ -1,3 +1,4 @@
+import { SharedSheet } from "./SharedSheet";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Session } from "@supabase/supabase-js";
@@ -6,21 +7,16 @@ import {
   ArrowRight,
   BookOpen,
   ChefHat,
-  Edit3,
   Plus,
   Search,
-  Trash2,
   Users,
   X,
 } from "lucide-react";
 import { supabase } from "./supabase";
 import { Editor } from "./RecipeEditor";
-import { Modal } from "./Modal";
 import {
   emptyRecipe,
   totalCost,
-  costPerKgLabel,
-  itemCost,
   money,
   yieldLabel,
   type Recipe,
@@ -127,16 +123,11 @@ export function SharedBook({
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [search, setSearch] = useState("");
-  const [detailTab, setDetailTab] = useState<"technical" | "recipe">(
-    "technical",
-  );
   const [editor, setEditor] = useState<Recipe | null>(null),
     [detail, setDetail] = useState<SharedRecipe | null>(null),
     [saving, setSaving] = useState(false),
-    [photos, setPhotos] = useState<Record<string, string>>({}),
-    [zoom, setZoom] = useState<string | null>(null);
-  const zoomRef = useRef<HTMLDialogElement>(null),
-    mounted = useRef(true);
+    [photos, setPhotos] = useState<Record<string, string>>({});
+  const mounted = useRef(true);
   const photo = (path: string) => photos[path] || "";
   async function load() {
     setLoading(true);
@@ -171,7 +162,10 @@ export function SharedBook({
       const paths = [
         ...new Set(
           rows
-            .flatMap((r) => [r.cover, ...r.steps.map((s) => s.photo)])
+            .flatMap((r) => [
+              r.cover,
+              ...r.steps.flatMap((s) => s.photos || [s.photo]),
+            ])
             .filter(Boolean),
         ),
       ];
@@ -205,9 +199,7 @@ export function SharedBook({
       mounted.current = false;
     };
   }, [bookId, session.user.id]);
-  useEffect(() => {
-    if (zoom) zoomRef.current?.showModal();
-  }, [zoom]);
+
   async function save(r: Recipe) {
     setSaving(true);
     setError("");
@@ -355,7 +347,6 @@ export function SharedBook({
               key={r.id}
               className="everest-record"
               onClick={() => {
-                setDetailTab("technical");
                 setDetail(r);
               }}
               aria-label={`Ver receita ${r.title}`}
@@ -419,207 +410,25 @@ export function SharedBook({
         )}
       {detail &&
         createPortal(
-          <Modal
-            wide
-            onClose={() => {
-              if (!saving) setDetail(null);
+          <SharedSheet
+            key={detail.id}
+            recipe={detail}
+            bookName={book.title}
+            session={session}
+            canEdit={canEdit}
+            saving={saving}
+            error={error}
+            onClose={() => setDetail(null)}
+            onEdit={() => {
+              setEditor(detail);
+              setDetail(null);
             }}
-          >
-            <div className="detail-content shared-detail">
-              <div className="eyebrow">{book.title} · LIVRO COMPARTILHADO</div>
-              <h2>{detail.title}</h2>
-              <p>{detail.description}</p>
-              <div className="detail-actions">
-                {canEdit && (
-                  <>
-                    <button
-                      className="primary"
-                      disabled={saving}
-                      onClick={() => {
-                        setEditor(detail);
-                        setDetail(null);
-                      }}
-                    >
-                      <Edit3 size={16} />
-                      Editar receita
-                    </button>
-                    <button
-                      className="secondary"
-                      disabled={saving}
-                      onClick={() => void remove(detail)}
-                    >
-                      <Trash2 size={16} />
-                      Excluir receita
-                    </button>
-                  </>
-                )}
-              </div>
-              <div
-                className="shared-detail-tabs"
-                role="tablist"
-                aria-label="Visualização da ficha"
-              >
-                {(
-                  [
-                    { id: "technical", label: "Ficha técnica" },
-                    { id: "recipe", label: "Receita" },
-                  ] as const
-                ).map((t) => (
-                  <button
-                    key={t.id}
-                    id={`shared-${t.id}-tab`}
-                    role="tab"
-                    aria-selected={detailTab === t.id}
-                    aria-controls="shared-detail-panel"
-                    tabIndex={detailTab === t.id ? 0 : -1}
-                    onClick={() => setDetailTab(t.id)}
-                    onKeyDown={(e) => {
-                      if (
-                        ["ArrowLeft", "ArrowRight", "Home", "End"].includes(
-                          e.key,
-                        )
-                      ) {
-                        e.preventDefault();
-                        const next =
-                          e.key === "Home"
-                            ? "technical"
-                            : e.key === "End"
-                              ? "recipe"
-                              : detailTab === "technical"
-                                ? "recipe"
-                                : "technical";
-                        setDetailTab(next);
-                        document.getElementById(`shared-${next}-tab`)?.focus();
-                      }
-                    }}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-              <div
-                id="shared-detail-panel"
-                role="tabpanel"
-                aria-labelledby={`shared-${detailTab}-tab`}
-              >
-                <div
-                  className={`detail-summary ${detailTab === "recipe" ? "shared-recipe-summary" : ""}`}
-                >
-                  {detailTab === "technical" && (
-                    <>
-                      <div>
-                        <span>Custo total</span>
-                        <strong>{money(totalCost(detail))}</strong>
-                      </div>
-                      <div>
-                        <span>Custo por kg</span>
-                        <strong>{costPerKgLabel(detail)}</strong>
-                      </div>
-                    </>
-                  )}
-                  <div>
-                    <span>Rendimento</span>
-                    <strong>{yieldLabel(detail)}</strong>
-                  </div>
-                  <div>
-                    <span>Preparo</span>
-                    <strong>{detail.minutes} min</strong>
-                  </div>
-                </div>
-                {error && <p role="alert">{error}</p>}
-                {photo(detail.cover) && (
-                  <button
-                    className="shared-thumb"
-                    aria-label="Ampliar foto do prato"
-                    onClick={() => setZoom(photo(detail.cover))}
-                  >
-                    <img src={photo(detail.cover)} alt="Prato final" />
-                  </button>
-                )}
-                <h3>Ingredientes</h3>
-                <div className="table-scroll">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Ingrediente</th>
-                        <th>Quantidade</th>
-                        {detailTab === "technical" && (
-                          <>
-                            <th>Preço / kg</th>
-                            <th>Custo</th>
-                          </>
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {detail.ingredients.map((i) => (
-                        <tr key={i.id}>
-                          <td>{i.name}</td>
-                          <td>
-                            {i.quantity} {i.unit}
-                          </td>
-                          {detailTab === "technical" && (
-                            <>
-                              <td>{money(i.price)}</td>
-                              <td>{money(itemCost(i))}</td>
-                            </>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <h3>Modo de preparo</h3>
-                {detail.steps.map((s, i) => (
-                  <div className="shared-step" key={s.id}>
-                    <b>{String(i + 1).padStart(2, "0")}</b>
-                    <p>{s.text}</p>
-                    {photo(s.photo) && (
-                      <button
-                        className="shared-thumb"
-                        aria-label={`Ampliar foto da etapa ${i + 1}`}
-                        onClick={() => setZoom(photo(s.photo))}
-                      >
-                        <img src={photo(s.photo)} alt={`Etapa ${i + 1}`} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {detail.notes && (
-                  <div className="notes">
-                    <h4>Notas da cozinha</h4>
-                    <p>{detail.notes}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-            {zoom && (
-              <dialog
-                className="shared-zoom"
-                ref={zoomRef}
-                onCancel={(e) => {
-                  e.preventDefault();
-                  setZoom(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setZoom(null);
-                  }
-                }}
-              >
-                <button
-                  autoFocus
-                  aria-label="Fechar foto ampliada"
-                  onClick={() => setZoom(null)}
-                >
-                  <X />
-                </button>
-                <img src={zoom} alt="Foto ampliada" />
-              </dialog>
-            )}
-          </Modal>,
+            onDelete={() => void remove(detail)}
+            onSaved={(r) => {
+              setDetail(r);
+              setRecipes((prev) => prev.map((x) => (x.id === r.id ? r : x)));
+            }}
+          />,
           document.body,
         )}
     </section>

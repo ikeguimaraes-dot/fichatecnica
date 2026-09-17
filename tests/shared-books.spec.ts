@@ -190,9 +190,11 @@ test("autor cria receita com custo, foto, edita e exclui no livro compartilhado"
     .getByRole("button", { name: "Ver receita Linguiça da casa" })
     .click();
   await expect(page.getByRole("dialog")).toContainText("R$ 60,00");
-  await page.getByRole("button", { name: "Ampliar foto do prato" }).click();
-  await expect(page.getByAltText("Foto ampliada")).toBeVisible();
+  await page.getByRole("tab", { name: "Receita", exact: true }).click();
+  await page.getByRole("button", { name: "Ampliar prato final" }).click();
+  await expect(page.getByAltText("Foto do preparo ampliada")).toBeVisible();
   await page.keyboard.press("Escape");
+  await page.getByRole("tab", { name: "Ficha técnica", exact: true }).click();
   await page.getByRole("button", { name: "Editar receita" }).click();
   await page.getByLabel("Nome do prato").fill("Linguiça revisada");
   await page.getByRole("button", { name: "03Modo de preparo" }).click();
@@ -277,4 +279,117 @@ test("ficha abre com preços e aba Receita mostra composição e preparo sem val
   await page.getByLabel("Fechar janela").click();
   await page.getByRole("button", { name: "Ver receita Lord" }).click();
   await expect(page.getByRole("tabpanel")).toContainText("R$ 30,00");
+});
+
+test("preparo compartilhado usa editor das unidades, preserva custos e imprime Receita em uma A4 sem preços", async ({
+  page,
+}) => {
+  await login(page);
+  let row: any = {
+    ...sample,
+    book_slug: "linguica",
+    content: { ...sample.content, title: "Lord" },
+  };
+  await page.route("**/rest/v1/receita_compartilhada?**", (r) => {
+    if (r.request().method() === "PATCH") {
+      row = { ...row, ...r.request().postDataJSON() };
+      return r.fulfill({ json: [{ id: row.id }] });
+    }
+    return r.fulfill({ json: [row] });
+  });
+  await page.route("**/storage/v1/object/receita-compartilhada-fotos/**", (r) =>
+    r.fulfill({ json: { Key: "uploaded" } }),
+  );
+  await page.route(
+    "**/storage/v1/object/sign/receita-compartilhada-fotos",
+    (r) =>
+      r.fulfill({
+        json: r
+          .request()
+          .postDataJSON()
+          .paths.map((path: string) => ({
+            path,
+            signedURL:
+              "/object/sign/receita-compartilhada-fotos/" +
+              path +
+              "?token=test",
+          })),
+      }),
+  );
+  await page.route(
+    "**/storage/v1/object/sign/receita-compartilhada-fotos/**",
+    (r) =>
+      r.fulfill({
+        contentType: "image/png",
+        body: Buffer.from(
+          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7ioAAAAASUVORK5CYII=",
+          "base64",
+        ),
+      }),
+  );
+  await menu(page);
+  await page.getByRole("button", { name: "Abrir livro Linguiça" }).click();
+  await page.getByRole("button", { name: "Ver receita Lord" }).click();
+  await page.getByRole("tab", { name: "Receita", exact: true }).click();
+  await expect(page.locator(".prep-panel")).toContainText("Misture e modele.");
+  await page.getByRole("button", { name: "Editar preparo" }).click();
+  await page.getByLabel("Título da etapa 1").fill("Misturar");
+  await page
+    .getByRole("button", { name: "Adicionar etapa", exact: true })
+    .click();
+  await page
+    .getByLabel("Instruções da etapa 2")
+    .fill("Resfrie antes de servir.");
+  const png = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 20;
+    c.getContext("2d")!.fillRect(0, 0, 20, 20);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await page
+    .getByLabel("Foto da etapa 2", { exact: true })
+    .setInputFiles({
+      name: "foto.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+  await expect(
+    page.getByRole("button", { name: "Ampliar foto 1 da etapa 2" }),
+  ).toBeVisible();
+  await page.getByLabel("Subir etapa 2").click();
+  await page.getByRole("button", { name: "Salvar preparo" }).click();
+  await expect(page.getByText("Modo de preparo salvo.")).toBeVisible();
+  expect(row.content.steps[0].photos).toHaveLength(1);
+  expect(row.content.ingredients).toEqual(sample.content.ingredients);
+  expect(row.content.steps[0].text).toBe("Resfrie antes de servir.");
+  expect(row.content.steps[1].title).toBe("Misturar");
+  await page.getByRole("button", { name: "Prévia A4" }).click();
+  const preview = page.getByRole("dialog", { name: "Prévia de impressão A4" });
+  await expect(
+    preview.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeEnabled();
+  await expect(page.locator(".prep-paper")).not.toContainText("R$");
+  await expect(page.locator(".prep-paper")).toContainText(
+    "Resfrie antes de servir.",
+  );
+  const pdf = await page.pdf({
+    path: "test-results/shared-standard-a4.pdf",
+    preferCSSPageSize: true,
+  });
+  expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(
+    1,
+  );
+  await page.emulateMedia({ media: "screen" });
+  await page.screenshot({
+    path: "test-results/shared-standard-a4.png",
+    fullPage: true,
+    animations: "disabled",
+  });
+  await preview.getByRole("button", { name: "Voltar à ficha" }).click();
+  await page.getByLabel("Fechar janela").click();
+  await page.getByRole("button", { name: "Ver receita Lord" }).click();
+  await page.getByRole("tab", { name: "Receita", exact: true }).click();
+  await expect(page.locator(".prep-steps")).toContainText(
+    "Resfrie antes de servir.",
+  );
 });
