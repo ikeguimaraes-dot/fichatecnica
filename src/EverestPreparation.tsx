@@ -798,50 +798,50 @@ export function EverestPreparation({
             className={`prep-paper ${compact ? "compact" : ""}`}
             aria-label="Ficha completa em A4"
           >
-            <header>
-              <div>
-                <b className="prep-brand">LE CHEF</b>
-                <span>FICHA TÉCNICA & PREPARO</span>
-                <h1>{detail.name}</h1>
-                <p>
-                  {adapter
-                    ? `${unit.name} · Receita compartilhada`
-                    : `${unit.name} · Ficha #${detail.id} · V${detail.version ?? "—"}`}
-                </p>
-              </div>
-              {content.finalPhoto && photos[content.finalPhoto] && (
-                <img src={photos[content.finalPhoto]} alt="Prato final" />
-              )}
-            </header>
-            <div className="prep-paper-metrics">
-              <span>
-                Rendimento{" "}
-                <b>
-                  {detail.yieldKg == null
-                    ? "Kg não informado"
-                    : `${number(detail.yieldKg)} kg`}
-                </b>
-              </span>
-              {showPrintCosts && (
-                <>
-                  <span>
-                    Custo total <b>{money(detail.totalCost)}</b>
-                  </span>
-                  <span>
-                    Custo / kg <b>{money(detail.costPerKg)}</b>
-                  </span>
-                </>
-              )}
-            </div>
-            {showPrintCosts && detail.costStatus !== "available" && (
-              <p className="prep-paper-warning">
-                {detail.costStatus === "review"
-                  ? "Custos a conferir: há ingredientes zerados ou sem custo médio na origem."
-                  : "Custos incompletos ou não confirmados no Everest."}
-              </p>
-            )}
             <div className="prep-paper-columns">
               <section>
+                <header>
+                  <div>
+                    <b className="prep-brand">LE CHEF</b>
+                    <span>FICHA TÉCNICA & PREPARO</span>
+                    <h1>{detail.name}</h1>
+                    <p>
+                      {adapter
+                        ? `${unit.name} · Receita compartilhada`
+                        : `${unit.name} · Ficha #${detail.id} · V${detail.version ?? "—"}`}
+                    </p>
+                  </div>
+                  {content.finalPhoto && photos[content.finalPhoto] && (
+                    <img src={photos[content.finalPhoto]} alt="Prato final" />
+                  )}
+                </header>
+                <div className="prep-paper-metrics">
+                  <span>
+                    Rendimento{" "}
+                    <b>
+                      {detail.yieldKg == null
+                        ? "Kg não informado"
+                        : `${number(detail.yieldKg)} kg`}
+                    </b>
+                  </span>
+                  {showPrintCosts && (
+                    <>
+                      <span>
+                        Custo total <b>{money(detail.totalCost)}</b>
+                      </span>
+                      <span>
+                        Custo / kg <b>{money(detail.costPerKg)}</b>
+                      </span>
+                    </>
+                  )}
+                </div>
+                {showPrintCosts && detail.costStatus !== "available" && (
+                  <p className="prep-paper-warning">
+                    {detail.costStatus === "review"
+                      ? "Custos a conferir: há ingredientes zerados ou sem custo médio na origem."
+                      : "Custos incompletos ou não confirmados no Everest."}
+                  </p>
+                )}
                 <h2>01 / Ingredientes</h2>
                 <table>
                   <thead>
@@ -874,7 +874,7 @@ export function EverestPreparation({
                   </tbody>
                 </table>
               </section>
-              <section>
+              <section className="prep-paper-method">
                 <h2>02 / Modo de preparo</h2>
                 {loading ? (
                   <p>Carregando preparo…</p>

@@ -664,18 +664,31 @@
 }
 .prep-paper-columns {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: 7mm;
+  grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+  gap: 5mm;
 }
 .prep-paper-columns > section {
   min-width: 0;
 }
 .prep-paper-columns > section + section {
   border-left: 1px solid #e5ded5;
-  padding-left: 7mm;
+  padding-left: 5mm;
 }
 @media screen and (max-width: 1120px) {
   .prep-print-host.is-preview {
     align-items: flex-start;
   }
+}
+
+.prep-paper-method > h2 {
+  border-top: 4px solid #fff5eb;
+  padding-top: 12px;
+  margin-top: 0;
+}
+.prep-paper.compact .prep-paper-method > h2 {
+  margin-top: 0;
+  padding-top: 8px;
+}
+.prep-paper-metrics {
+  flex-wrap: wrap;
 }

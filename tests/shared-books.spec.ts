@@ -401,3 +401,108 @@ test("preparo compartilhado usa editor das unidades, preserva custos e imprime p
     "Resfrie antes de servir.",
   );
 });
+
+test("diagramação de referência mantém 13 ingredientes e seis etapas com fotos em uma A4", async ({
+  page,
+}) => {
+  await login(page, other);
+  const ingredientNames = [
+    "Copa Lombo",
+    "Toucinho",
+    "Queijo em cubos",
+    "Água gelada",
+    "Sal",
+    "Açúcar Mascavo",
+    "Páprica",
+    "Cebola em pó",
+    "Alho fresco",
+    "Pimenta Preta Moída",
+    "Ervas Secas",
+    "Sal de cura (Tipo 1)",
+    "Antioxidante",
+  ];
+  const instructions = [
+    "Controle de temperatura: mantenha os ingredientes resfriados durante o processo de moagem para garantir boa emulsão e evitar a separação da gordura.",
+    "Mistura e extração de liga: misture as carnes com o sal, os temperos e a água gelada até obter a extração das proteínas e uma massa firme.",
+    "Descanso da massa: guarde a massa bem coberta na geladeira. Esta etapa permite a distribuição dos temperos e a maturação da liga.",
+    "Adição do queijo: retire a massa da geladeira e adicione o queijo em cubos bem gelado, misturando apenas o suficiente para distribuir de forma homogênea.",
+    "Ensague a massa com o queijo em tripa natural, garantindo que não fiquem bolhas de ar.",
+    "Hidrate a tripa antes de começar o preparo.",
+  ];
+  await page.route("**/rest/v1/receita_compartilhada?**", (r) =>
+    r.fulfill({
+      json: [
+        {
+          ...sample,
+          book_slug: "linguica",
+          content: {
+            ...sample.content,
+            title: "Linguiça Lord",
+            yield_kg: 10,
+            ingredients: ingredientNames.map((name, i) => ({
+              id: String(i),
+              name,
+              quantity: i < 4 ? 2 : 45,
+              unit: i < 4 ? "kg" : "g",
+              price: 30,
+            })),
+            steps: instructions.map((text, i) => ({
+              id: String(i),
+              text,
+              photo: `step-${i}.png`,
+            })),
+          },
+        },
+      ],
+    }),
+  );
+  await page.route(
+    "**/storage/v1/object/sign/receita-compartilhada-fotos",
+    (r) =>
+      r.fulfill({
+        json: r
+          .request()
+          .postDataJSON()
+          .paths.map((path: string) => ({
+            path,
+            signedURL: `/object/sign/receita-compartilhada-fotos/${path}?token=test`,
+          })),
+      }),
+  );
+  await page.route(
+    "**/storage/v1/object/sign/receita-compartilhada-fotos/**",
+    (r) =>
+      r.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="100"><rect width="80" height="100" fill="#e6b990"/><circle cx="40" cy="50" r="25" fill="#ae6945"/></svg>',
+      }),
+  );
+  await menu(page);
+  await page.getByRole("button", { name: "Abrir livro Linguiça" }).click();
+  await page.getByRole("button", { name: "Ver receita Linguiça Lord" }).click();
+  await page.getByRole("tab", { name: "Modo de preparo", exact: true }).click();
+  await page.getByRole("button", { name: "Prévia A4" }).click();
+  const preview = page.getByRole("dialog", { name: "Prévia de impressão A4" });
+  await expect(
+    preview.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeEnabled();
+  const paper = page.locator(".prep-paper");
+  await expect(paper.locator("tbody tr")).toHaveCount(13);
+  await expect(paper.locator("li img")).toHaveCount(6);
+  await expect(paper).not.toContainText("R$");
+  const header = await paper.locator("header").boundingBox();
+  const method = await paper.locator(".prep-paper-method").boundingBox();
+  expect(Math.abs(header!.y - method!.y)).toBeLessThan(1);
+  expect(method!.x).toBeGreaterThan(header!.x + header!.width);
+  const pdf = await page.pdf({
+    path: "test-results/reference-layout.pdf",
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
+  expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(
+    1,
+  );
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await paper.screenshot({ path: "test-results/reference-layout.png" });
+});
