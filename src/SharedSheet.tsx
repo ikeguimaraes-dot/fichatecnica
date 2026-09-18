@@ -175,7 +175,7 @@ export function SharedSheet({
       quantity: i.quantity,
       utilization: null,
       type: null,
-      unitCost: i.unit === "g" ? i.price / 1000 : i.price,
+      unitCost: i.unit === "kg" ? i.price : i.price / 1000,
       appliedCost: itemCost(i),
       stockUnitCost: null,
       costBasis: "everest",
@@ -190,7 +190,7 @@ export function SharedSheet({
             <th>Quantidade</th>
             {costs && (
               <>
-                <th>Preço / kg</th>
+                <th>Preço / kg ou L</th>
                 <th>Custo</th>
               </>
             )}
@@ -205,7 +205,9 @@ export function SharedSheet({
               </td>
               {costs && (
                 <>
-                  <td>{money(i.price)}</td>
+                  <td>
+                    {money(i.price)} / {i.unit === "ml" ? "L" : "kg"}
+                  </td>
                   <td>{money(itemCost(i))}</td>
                 </>
               )}

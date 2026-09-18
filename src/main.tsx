@@ -1107,7 +1107,7 @@ function App() {
                   <tr>
                     <th>Ingrediente</th>
                     <th>Quantidade</th>
-                    <th>Preço / kg</th>
+                    <th>Preço / kg ou L</th>
                     <th>Custo</th>
                   </tr>
                 </thead>
@@ -1118,7 +1118,9 @@ function App() {
                       <td>
                         {i.quantity} {i.unit}
                       </td>
-                      <td>{money(i.price)}</td>
+                      <td>
+                        {money(i.price)} / {i.unit === "ml" ? "L" : "kg"}
+                      </td>
                       <td>{money(itemCost(i))}</td>
                     </tr>
                   ))}

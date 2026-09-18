@@ -2,7 +2,7 @@ export type Ingredient = {
   id: string;
   name: string;
   quantity: number;
-  unit: "g" | "kg";
+  unit: "g" | "kg" | "ml";
   price: number;
 };
 export type Step = {
@@ -41,7 +41,7 @@ export const money = (n: number) =>
     n,
   );
 export const itemCost = (i: Ingredient) =>
-  (i.quantity * i.price) / (i.unit === "g" ? 1000 : 1);
+  (i.quantity * i.price) / (i.unit === "kg" ? 1 : 1000);
 export const totalCost = (r: Recipe) =>
   r.ingredients.reduce((sum, i) => sum + itemCost(i), 0);
 export const costPerKg = (r: Recipe): number | null =>

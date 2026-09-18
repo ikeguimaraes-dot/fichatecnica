@@ -2035,7 +2035,7 @@ tfoot td {
     font-size: 10px;
   }
   .ingredient-row:before {
-    content: "Quantidade · Unidade · Preço/kg · Custo";
+    content: "Quantidade · Unidade · Preço/kg ou L · Custo";
     font-size: 8px;
     color: #91877f;
     grid-column: 1/-1;

@@ -174,6 +174,12 @@ test("autor cria receita com custo, foto, edita e exclui no livro compartilhado"
   await page.getByLabel("Unidade 1", { exact: true }).selectOption("kg");
   await page.getByLabel("Preço por kg 1", { exact: true }).fill("30");
   await expect(page.getByTestId("editor-total")).toContainText("60,00");
+  await page.getByLabel("Unidade 1", { exact: true }).selectOption("ml");
+  await page.getByLabel("Quantidade 1", { exact: true }).fill("500");
+  await expect(
+    page.getByLabel("Preço por litro 1", { exact: true }),
+  ).toHaveValue("30");
+  await expect(page.getByTestId("editor-total")).toContainText("15,00");
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await page
     .getByLabel("Etapa 1", { exact: true })
@@ -185,11 +191,12 @@ test("autor cria receita com custo, foto, edita e exclui no livro compartilhado"
     page.getByRole("button", { name: "Ver receita Linguiça da casa" }),
   ).toBeVisible();
   expect(rows[0].book_slug).toBe("linguica");
+  expect(rows[0].content.ingredients[0].unit).toBe("ml");
   expect(uploaded).toContain("receita-compartilhada-fotos/" + owner);
   await page
     .getByRole("button", { name: "Ver receita Linguiça da casa" })
     .click();
-  await expect(page.getByRole("dialog")).toContainText("R$ 60,00");
+  await expect(page.getByRole("dialog")).toContainText("R$ 15,00");
   await page.getByRole("tab", { name: "Modo de preparo", exact: true }).click();
   await page.getByRole("button", { name: "Ampliar prato final" }).click();
   await expect(page.getByAltText("Foto do preparo ampliada")).toBeVisible();
@@ -505,4 +512,46 @@ test("diagramação de referência mantém 13 ingredientes e seis etapas com fot
   await page.emulateMedia({ media: "screen" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await paper.screenshot({ path: "test-results/reference-layout.png" });
+});
+
+test("aba Impressão exibe a folha e imprime uma única página", async ({
+  page,
+}) => {
+  await login(page, other);
+  await page.route("**/rest/v1/receita_compartilhada?**", (r) =>
+    r.fulfill({ json: [sample] }),
+  );
+  await menu(page);
+  await page.getByRole("button", { name: "Abrir livro Hamburguer" }).click();
+  await page.getByRole("button", { name: "Ver receita Blend da casa" }).click();
+  await page.getByRole("tab", { name: "Modo de preparo", exact: true }).click();
+  await page.keyboard.press("ArrowRight");
+  await expect(
+    page.getByRole("tab", { name: "Impressão", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  const panel = page.getByRole("tabpanel", { name: "Impressão" });
+  await expect(
+    panel.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeEnabled();
+  await expect(panel).toContainText("Misture e modele.");
+  await expect(panel).not.toContainText("R$");
+  const pdf = await page.pdf({ preferCSSPageSize: true });
+  expect((pdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length).toBe(
+    1,
+  );
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("tab", { name: "Impressão", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/printing-tab-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
 });

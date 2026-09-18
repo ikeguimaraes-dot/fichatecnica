@@ -382,8 +382,8 @@ export function Editor({
               <div className="section-intro">
                 <h3>A medida de cada sabor.</h3>
                 <p>
-                  Informe a quantidade usada e o preço por quilo. O custo é
-                  calculado na hora.
+                  Informe a quantidade usada e o preço por quilo ou por litro
+                  (ml). O custo é calculado na hora.
                 </p>
               </div>
               <div className="ingredient-table">
@@ -391,7 +391,7 @@ export function Editor({
                   <span>INGREDIENTE</span>
                   <span>QUANTIDADE</span>
                   <span>UNIDADE</span>
-                  <span>PREÇO / KG</span>
+                  <span>PREÇO / KG OU L</span>
                   <span>CUSTO</span>
                   <span />
                 </div>
@@ -435,7 +435,10 @@ export function Editor({
                         update({
                           ingredients: r.ingredients.map((i) =>
                             i.id === item.id
-                              ? { ...i, unit: e.target.value as "g" | "kg" }
+                              ? {
+                                  ...i,
+                                  unit: e.target.value as "g" | "kg" | "ml",
+                                }
                               : i,
                           ),
                         })
@@ -443,14 +446,17 @@ export function Editor({
                     >
                       <option value="g">g</option>
                       <option value="kg">kg</option>
+                      <option value="ml">ml</option>
                     </select>
                     <input
-                      aria-label={`Preço por kg ${index + 1}`}
+                      aria-label={`Preço por ${item.unit === "ml" ? "litro" : "kg"} ${index + 1}`}
                       type="number"
                       min={0}
                       step="any"
                       value={item.price || ""}
-                      placeholder="0,00"
+                      placeholder={
+                        item.unit === "ml" ? "R$ / litro" : "R$ / kg"
+                      }
                       onChange={(e) =>
                         update({
                           ingredients: r.ingredients.map((i) =>
