@@ -479,6 +479,16 @@ test("conteúdo excessivo avisa e bloqueia impressão sem cortar o preparo", asy
   await expect(
     preview.getByRole("button", { name: "Imprimir ficha completa" }),
   ).toBeDisabled();
+  await preview.getByRole("button", { name: "Voltar à ficha" }).click();
+  await page.getByRole("tab", { name: "Impressão", exact: true }).click();
+  const printPanel = page.getByRole("tabpanel", { name: "Impressão" });
+  await expect(printPanel.locator(".illustrated-step-grid > li")).toHaveCount(
+    24,
+  );
+  await expect(printPanel).toContainText("O conteúdo ultrapassa uma folha");
+  await expect(
+    printPanel.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeDisabled();
 });
 test("erro de salvamento mantém rascunho e fechamento exige descarte", async ({
   page,

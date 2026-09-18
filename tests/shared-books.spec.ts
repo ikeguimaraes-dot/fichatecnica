@@ -445,6 +445,7 @@ test("diagramação de referência mantém 13 ingredientes e seis etapas com fot
           content: {
             ...sample.content,
             title: "Linguiça Lord",
+            cover: "final.png",
             yield_kg: 10,
             ingredients: ingredientNames.map((name, i) => ({
               id: String(i),
@@ -512,6 +513,34 @@ test("diagramação de referência mantém 13 ingredientes e seis etapas com fot
   await page.emulateMedia({ media: "screen" });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await paper.screenshot({ path: "test-results/reference-layout.png" });
+  await preview.getByRole("button", { name: "Voltar à ficha" }).click();
+  await page.getByRole("tab", { name: "Impressão", exact: true }).click();
+  await page.getByRole("button", { name: "Prévia A4" }).click();
+  const illustrated = preview.locator(".illustrated-paper");
+  await expect(
+    preview.getByRole("button", { name: "Imprimir ficha completa" }),
+  ).toBeEnabled();
+  await expect(illustrated.locator(".illustrated-ingredient")).toHaveCount(13);
+  await expect(illustrated.locator(".illustrated-step-grid > li")).toHaveCount(
+    6,
+  );
+  await expect(illustrated.locator("img")).toHaveCount(7);
+  await expect(illustrated).not.toContainText("R$");
+  for (const text of instructions)
+    await expect(illustrated).toContainText(text);
+  const illustratedPdf = await page.pdf({
+    path: "test-results/illustrated-a4.pdf",
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
+  expect(
+    (illustratedPdf.toString("latin1").match(/\/Type \/Page\b/g) || []).length,
+  ).toBe(1);
+  await page.emulateMedia({ media: "screen" });
+  await illustrated.screenshot({
+    path: "test-results/illustrated-a4.png",
+    animations: "disabled",
+  });
 });
 
 test("aba Impressão exibe a folha e imprime uma única página", async ({
