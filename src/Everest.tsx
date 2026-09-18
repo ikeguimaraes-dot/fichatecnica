@@ -1,3 +1,4 @@
+import { formatQuantity } from "./model";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -32,14 +33,14 @@ const numeric = (n: number | null) =>
   n === null
     ? "—"
     : new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 6 }).format(n);
-const money = (value: number | null | undefined, digits = 2) =>
+const money = (value: number | null | undefined) =>
   value == null
     ? "Não informado"
     : new Intl.NumberFormat("pt-BR", {
         style: "currency",
         currency: "BRL",
         minimumFractionDigits: 2,
-        maximumFractionDigits: digits,
+        maximumFractionDigits: 2,
       }).format(value);
 const date = (s: string) => {
   const match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -512,7 +513,7 @@ function UnitRecipes({
                     </strong>
                     {r.yieldKg === null && (
                       <small>
-                        {numeric(r.quantity)}{" "}
+                        {formatQuantity(r.quantity)}{" "}
                         {r.unit || "unidade não informada"} no Everest
                       </small>
                     )}
@@ -613,7 +614,7 @@ function UnitRecipes({
                       <div>
                         <span>Produção no Everest</span>
                         <strong>
-                          {numeric(detail.quantity)} {detail.unit || "—"}
+                          {formatQuantity(detail.quantity)} {detail.unit || "—"}
                         </strong>
                       </div>
                       <div>
@@ -700,7 +701,7 @@ function UnitRecipes({
                                 </small>
                               </td>
                               <td data-label="Quantidade">
-                                {numeric(i.quantity)}
+                                {formatQuantity(i.quantity)}
                               </td>
                               <td data-label="Unidade">{i.unit || "—"}</td>
                               <td data-label="Aproveitamento">
@@ -712,7 +713,7 @@ function UnitRecipes({
                                 className="everest-money"
                                 data-label="Custo aplicado / unidade"
                               >
-                                {money(i.unitCost, 4)}
+                                {money(i.unitCost)}
                                 <small>
                                   {i.unitCost != null
                                     ? `por ${i.unit.trim().toLowerCase() || "unidade"}`
@@ -734,7 +735,7 @@ function UnitRecipes({
                                 className="everest-money"
                                 data-label="Custo na receita"
                               >
-                                {money(i.appliedCost, 4)}
+                                {money(i.appliedCost)}
                               </td>
                             </tr>
                           ))}
@@ -765,11 +766,11 @@ function UnitRecipes({
                         <dl>
                           <div>
                             <dt>Soma dos itens desta receita</dt>
-                            <dd>{money(detail.totalCost, 4)}</dd>
+                            <dd>{money(detail.totalCost)}</dd>
                           </div>
                           <div>
                             <dt>Total do cabeçalho Everest</dt>
-                            <dd>{money(detail.costAudit.sourceTotal, 4)}</dd>
+                            <dd>{money(detail.costAudit.sourceTotal)}</dd>
                           </div>
                         </dl>
                         {detail.costAudit.difference !== null &&

@@ -35,6 +35,7 @@ import {
   costPerKg,
   costPerKgLabel,
   yieldLabel,
+  formatQuantity,
   normalizeRecipe,
   emptyRecipe,
   examples,
@@ -1116,7 +1117,7 @@ function App() {
                     <tr key={i.id}>
                       <td>{i.name}</td>
                       <td>
-                        {i.quantity} {i.unit}
+                        {formatQuantity(i.quantity)} {i.unit}
                       </td>
                       <td>
                         {money(i.price)} / {i.unit === "ml" ? "L" : "kg"}

@@ -1,3 +1,4 @@
+import { formatQuantity } from "./model";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -45,7 +46,8 @@ const money = (n: number | null) =>
     : n.toLocaleString("pt-BR", {
         style: "currency",
         currency: "BRL",
-        maximumFractionDigits: 4,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
       });
 async function call(
   unit: number,
@@ -424,7 +426,7 @@ export function EverestPreparation({
                   <tr key={i}>
                     <td>{c.name}</td>
                     <td>
-                      {number(c.quantity)} {c.unit}
+                      {formatQuantity(c.quantity)} {c.unit}
                     </td>
                     {showPrintCosts && (
                       <>
@@ -642,7 +644,7 @@ export function EverestPreparation({
                 <tr key={i}>
                   <td>{c.name}</td>
                   <td>
-                    {number(c.quantity)} {c.unit}
+                    {formatQuantity(c.quantity)} {c.unit}
                   </td>
                 </tr>
               ))}

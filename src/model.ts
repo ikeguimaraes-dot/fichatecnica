@@ -36,6 +36,13 @@ export const categories = [
   "Bebidas",
   "Bases e molhos",
 ];
+export const formatQuantity = (value: number | null | undefined) =>
+  value == null
+    ? "—"
+    : value.toLocaleString("pt-BR", {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      });
 export const money = (n: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
     n,

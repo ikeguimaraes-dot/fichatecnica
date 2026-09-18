@@ -15,6 +15,7 @@ import {
   itemCost,
   money,
   yieldLabel,
+  formatQuantity,
   costPerKgLabel,
   type Recipe,
 } from "./model";
@@ -201,7 +202,7 @@ export function SharedSheet({
             <tr key={i.id}>
               <td>{i.name}</td>
               <td>
-                {i.quantity} {i.unit}
+                {formatQuantity(i.quantity)} {i.unit}
               </td>
               {costs && (
                 <>

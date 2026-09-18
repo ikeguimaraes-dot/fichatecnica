@@ -1,3 +1,4 @@
+import { formatQuantity } from "./model";
 import type { Ref } from "react";
 import { ChefHat } from "lucide-react";
 import type { Content } from "./EverestPreparation";
@@ -74,7 +75,7 @@ export function IllustratedPrint({
               <div className="illustrated-ingredient" key={index}>
                 <span>{item.name}</span>
                 <b>
-                  {quantity(item.quantity)} {item.unit}
+                  {formatQuantity(item.quantity)} {item.unit}
                 </b>
               </div>
             ))}
