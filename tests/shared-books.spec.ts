@@ -517,6 +517,7 @@ test("diagramação de referência mantém 13 ingredientes e seis etapas com fot
   await page.getByRole("tab", { name: "Impressão", exact: true }).click();
   await page.getByRole("button", { name: "Prévia A4" }).click();
   const illustrated = preview.locator(".illustrated-paper");
+
   await expect(
     preview.getByRole("button", { name: "Imprimir ficha completa" }),
   ).toBeEnabled();
@@ -526,6 +527,26 @@ test("diagramação de referência mantém 13 ingredientes e seis etapas com fot
   );
   await expect(illustrated.locator("img")).toHaveCount(7);
   await expect(illustrated).not.toContainText("R$");
+  const layout = await illustrated.evaluate((el) => {
+    const sheet = el.getBoundingClientRect();
+    const footer = el.querySelector("footer")!.getBoundingClientRect();
+    const photo = el
+      .querySelector(".illustrated-step-photos img")!
+      .getBoundingClientRect();
+    return {
+      bottomGap: sheet.bottom - footer.bottom,
+      photoHeight: photo.height,
+      fontSize: parseFloat(
+        getComputedStyle(el.querySelector(".illustrated-step-grid p")!)
+          .fontSize,
+      ),
+    };
+  });
+  expect(layout.fontSize).toBeGreaterThanOrEqual(11);
+  expect(layout.photoHeight).toBeGreaterThanOrEqual(98);
+  expect(layout.bottomGap).toBeGreaterThanOrEqual(14);
+  expect(layout.bottomGap).toBeLessThan(18);
+
   for (const text of instructions)
     await expect(illustrated).toContainText(text);
   const illustratedPdf = await page.pdf({

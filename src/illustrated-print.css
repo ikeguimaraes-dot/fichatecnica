@@ -1,5 +1,7 @@
 .prep-paper.illustrated-paper {
   padding: 4mm;
+  display: flex;
+  flex-direction: column;
   color: #242424;
   font-size: 10px;
   line-height: 1.35;
@@ -89,7 +91,7 @@
   font-size: 13px;
 }
 .prep-paper.illustrated-paper h2 {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   padding: 5px 9px;
   background: #ff8b24;
   color: #282018;
@@ -129,7 +131,8 @@
 }
 .illustrated-paper .illustrated-step-grid > li {
   min-width: 0;
-  display: block;
+  display: flex;
+  flex-direction: column;
   padding: 7px;
   border-right: 1px solid #dfd8d0;
   border-bottom: 1px solid #dfd8d0;
@@ -155,20 +158,28 @@
   font-weight: bold;
 }
 .illustrated-step-photos {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 3px;
   margin-bottom: 6px;
-}
-.illustrated-step-photos img {
-  width: 0;
-  min-width: 0;
   flex: 1;
-  height: 22mm;
-  object-fit: contain;
+  min-height: 26mm;
+}
+.illustrated-photo-frame {
+  position: relative;
+  min-width: 0;
   background: #faf7f3;
 }
+.illustrated-step-photos img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
 .illustrated-paper .illustrated-step-grid p {
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.4;
 }
 .illustrated-notes > p {
@@ -195,12 +206,38 @@
   padding: 3px 6px;
   gap: 2px;
 }
-.illustrated-paper.compact .illustrated-step-photos img {
-  height: 16mm;
+.illustrated-paper.compact .illustrated-step-photos {
+  min-height: 18mm;
 }
 .illustrated-paper.compact .illustrated-step-grid > li {
   padding: 5px;
 }
 .illustrated-paper.compact .illustrated-step-grid p {
+  font-size: 10px;
   line-height: 1.25;
+}
+
+.illustrated-paper > * {
+  flex-shrink: 0;
+}
+.illustrated-paper .illustrated-method {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.illustrated-paper .illustrated-method > h2 {
+  flex-shrink: 0;
+}
+.illustrated-paper ol.illustrated-step-grid {
+  flex: 1;
+}
+.illustrated-paper .illustrated-step-heading,
+.illustrated-paper .illustrated-step-grid p {
+  flex-shrink: 0;
+}
+.illustrated-paper .illustrated-step-grid > li {
+  gap: 0;
+}
+.illustrated-paper .illustrated-step-grid > li > .illustrated-step-heading {
+  flex: 0 0 auto;
 }

@@ -88,7 +88,12 @@ export function IllustratedPrint({
         ) : error ? (
           <p>Preparo indisponível. Reabra a ficha antes de imprimir.</p>
         ) : content.steps.length ? (
-          <ol className="illustrated-step-grid">
+          <ol
+            className="illustrated-step-grid"
+            style={{
+              gridTemplateColumns: `repeat(${Math.min(content.steps.length, 6)}, minmax(0, 1fr))`,
+            }}
+          >
             {content.steps.map((step, index) => (
               <li key={index}>
                 <div className="illustrated-step-heading">
@@ -99,11 +104,12 @@ export function IllustratedPrint({
                   <div className="illustrated-step-photos">
                     {step.photos.map((path, photoIndex) =>
                       photos[path] ? (
-                        <img
-                          key={path}
-                          src={photos[path]}
-                          alt={`Etapa ${index + 1}, foto ${photoIndex + 1}`}
-                        />
+                        <span className="illustrated-photo-frame" key={path}>
+                          <img
+                            src={photos[path]}
+                            alt={`Etapa ${index + 1}, foto ${photoIndex + 1}`}
+                          />
+                        </span>
                       ) : (
                         <span key={path}>Foto indisponível</span>
                       ),
