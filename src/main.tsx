@@ -414,7 +414,7 @@ function App() {
             onClick={() => navigate("books")}
           >
             <Library size={19} />
-            Meus livros <span>{books.length.toString().padStart(2, "0")}</span>
+            Laboratorio <span>{books.length.toString().padStart(2, "0")}</span>
           </button>
           <button
             className={nav === "book" && !activeBook ? "active" : ""}
@@ -496,7 +496,7 @@ function App() {
                 : nav === "costs"
                   ? "Visão de custos"
                   : nav === "books"
-                    ? "Meus livros"
+                    ? "Laboratorio"
                     : currentBook?.title ||
                       (activeBook === "unfiled"
                         ? "Sem livro"
