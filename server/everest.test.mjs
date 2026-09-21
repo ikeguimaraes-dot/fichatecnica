@@ -84,11 +84,8 @@ test("exige login e não aceita escrita", async () => {
   assert.equal((await invoke(handler, { method: "POST" })).status, 405);
   assert.equal(calls, 0);
 });
-test("confere token no Supabase e bloqueia outra conta e login anônimo", async () => {
-  for (const user of [
-    { id: "stranger" },
-    { id: "owner", is_anonymous: true },
-  ]) {
+test("confere token no Supabase e bloqueia sessão sem usuário e login anônimo", async () => {
+  for (const user of [{}, { id: "owner", is_anonymous: true }]) {
     const handler = createHandler({
       env,
       fetchImpl: async () => Response.json(user),
@@ -513,5 +510,17 @@ test("valores vazios ou booleanos não são convertidos em custo zero", () => {
     );
     assert.equal(result.totalCost, null);
     assert.equal(result.costStatus, "partial");
+  }
+});
+
+test("qualquer conta autenticada consulta unidades e fichas sem lista de acesso", async () => {
+  for (const allowed of ["owner", ""]) {
+    const handler = createHandler({
+      env: { ...env, EVEREST_ALLOWED_USER_IDS: allowed },
+      fetchImpl: async () => Response.json({ id: "other-user" }),
+      upstream: async () => ({ records: [], totalPages: 1 }),
+    });
+    for (const url of ["/api/everest?kind=units", "/api/everest?id=12&unit=3"])
+      assert.equal((await invoke(handler, { url })).status, 200);
   }
 });

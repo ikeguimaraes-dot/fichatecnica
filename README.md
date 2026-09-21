@@ -67,7 +67,7 @@ A integração guarda cópias em tabelas próprias `receita_everest_*`, sem mist
 
 Configure no servidor Vercel: `EVEREST_USERNAME`, `EVEREST_PASSWORD`, `EVEREST_ENTITY`, `EVEREST_ENVIRONMENT` (`production` ou `homologation`) `EVEREST_ALLOWED_USER_IDS` (UUIDs Supabase separados por vírgula), `EVEREST_SUPABASE_SERVICE_KEY` (chave administrativa Supabase) e `EVEREST_WORKER_TOKEN` (token aleatório do processador). Produção usa entidade `2024059`; homologação usa `2020153`. As variáveis foram configuradas apenas em Production; previews exigem configuração própria. Nunca exponha estas credenciais em variáveis `VITE_*`.
 
-A função `/api/everest` valida a sessão no Supabase e permite somente usuários explicitamente autorizados. O cadastro de uma nova conta não libera automaticamente os dados da empresa. A conta inicialmente autorizada é `grupomeeteat@gmail.com`. O backend usa o mesmo Supabase do aplicativo; se trocar o projeto, configure também `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` no servidor.
+As consultas às unidades, fichas e preparos do Everest são liberadas para todos os usuários autenticados no Supabase, exceto sessões anônimas. A lista `EVEREST_ALLOWED_USER_IDS` restringe apenas a sincronização e edição de preparos. O backend usa o mesmo Supabase do aplicativo; se trocar o projeto, configure também `SUPABASE_URL` e `SUPABASE_PUBLISHABLE_KEY` no servidor.
 
 ### Sincronização manual e leitura rápida
 
@@ -80,7 +80,7 @@ Tabelas privadas, com RLS e privilégios revogados para `anon` e `authenticated`
 - `receita_everest_template`: fichas brutas usadas somente durante a preparação.
 - `receita_everest_snapshot`: fichas, resumos, composição original e árvore de custos por unidade/versão.
 
-O servidor valida a sessão e a lista de usuários permitidos antes de acessar esses dados com a chave administrativa. Leituras só podem acessar a versão publicada ou a anterior, nunca uma cópia em preparação. Dados originais ficam no banco e permitem recalcular custos com correções de código sem uma nova importação.
+O servidor valida a sessão antes de consultar esses dados com a chave administrativa; operações de escrita também exigem a lista de usuários permitidos. Leituras só podem acessar a versão publicada ou a anterior, nunca uma cópia em preparação. Dados originais ficam no banco e permitem recalcular custos com correções de código sem uma nova importação.
 
 O cron `le-chef-everest-worker` verifica a cada minuto se existe trabalho solicitado pelo botão e aciona `/api/everest-worker` por `pg_net`. **Ele não cria atualizações automáticas semanais nem consulta o Everest quando não há trabalho.** O token fica no Vault sob `lechef_everest_worker_token`, com o mesmo valor secreto na Vercel. O processador usa blocos de aproximadamente 45 segundos, checkpoints por etapa e lease de 150 segundos para evitar concorrência e retomar após interrupções. A origem tem intervalo mínimo de 1,2 segundo; 412/429 têm nova tentativa. Cinco falhas consecutivas na mesma etapa encerram o trabalho com erro, preservando versões publicadas. Solicitar novamente o mesmo escopo retoma o último trabalho falho. A fila aceita apenas um trabalho ativo, devido ao limite global da API.
 
@@ -116,7 +116,7 @@ Tipografia Playfair Display, DM Sans e Manrope (Google Fonts). Fotografias ilust
 
 ### Modo de preparo das fichas Everest
 
-A ficha possui duas abas: dados técnicos de leitura e **Modo de preparo**, editável no Le Chef. Cada preparo pertence à combinação `(unit_id, ficha_id)` e fica em `receita_everest_preparo`, independente dos snapshots. A sincronização do Everest não altera nem exclui o preparo. A API verifica a sessão, a lista de usuários autorizados e o vínculo da ficha com a unidade. Uma revisão UUID impede sobrescrever alterações simultâneas.
+A ficha possui duas abas: dados técnicos de leitura e **Modo de preparo**, editável no Le Chef. Cada preparo pertence à combinação `(unit_id, ficha_id)` e fica em `receita_everest_preparo`, independente dos snapshots. A sincronização do Everest não altera nem exclui o preparo. A API verifica a sessão e o vínculo da ficha com a unidade; a edição também exige a lista de usuários autorizados. Uma revisão UUID impede sobrescrever alterações simultâneas.
 
 Etapas podem ser adicionadas, reordenadas e removidas; cada etapa aceita até três fotos e a ficha aceita uma referência final (até 24 fotos e 24 etapas no total). Imagens JPG/PNG/WebP de até 20 MB são convertidas no navegador para JPEG de até 1600 px e 2 MB. O bucket privado `receita-everest-preparo` aceita apenas JPEG. Uploads usam autorizações temporárias emitidas pelo servidor; leitura usa URLs assinadas por uma hora. Reabra a ficha para renovar as URLs. Caminhos são restritos à unidade/ficha, e as tabelas e funções são acessíveis apenas pelo servidor. Remover uma foto do preparo remove sua referência; arquivos antigos ou de edições canceladas permanecem privados no bucket para futura limpeza controlada.
 

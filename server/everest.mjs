@@ -356,14 +356,6 @@ export function createHandler({
       return send(401, {
         error: "Entre na sua conta para consultar as fichas técnicas.",
       });
-    const allowed = (env.EVEREST_ALLOWED_USER_IDS || "")
-      .split(",")
-      .map((x) => x.trim())
-      .filter(Boolean);
-    if (!allowed.length)
-      return send(503, {
-        error: "A integração está aguardando configuração de acesso.",
-      });
     try {
       const auth = await fetchImpl(
         `${env.SUPABASE_URL || DEFAULT_AUTH_URL}/auth/v1/user`,
@@ -384,7 +376,7 @@ export function createHandler({
               : "Sua sessão expirou. Entre novamente.",
         });
       const user = await auth.json();
-      if (!user.id || user.is_anonymous || !allowed.includes(user.id))
+      if (!user.id || user.is_anonymous)
         return send(403, {
           error:
             "Sua conta não tem acesso às fichas do Everest. Solicite a liberação ao administrador.",

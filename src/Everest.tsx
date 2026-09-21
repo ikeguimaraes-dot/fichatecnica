@@ -299,7 +299,7 @@ function UnitRecipes({
             <em>No lugar certo.</em>
           </h2>
           <p>
-            Entre na sua conta autorizada para consultar
+            Entre na sua conta para consultar
             <br />
             as fichas técnicas cadastradas no Everest.
           </p>

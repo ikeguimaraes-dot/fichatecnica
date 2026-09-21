@@ -486,3 +486,32 @@ test("job antigo pula unidade excluída sem consultar Everest ou publicar dados"
   assert.equal(result.state.phase, "members");
   assert.equal(result.state.itemIndex, undefined);
 });
+
+test("leitura compartilhada exige sessão válida e preserva restrição de escrita", async () => {
+  const fetchUser = async () => Response.json({ id: "other-user" });
+  for (const allowed of ["owner", ""]) {
+    const env = { EVEREST_ALLOWED_USER_IDS: allowed };
+    const req = { method: "GET", headers: { authorization: "Bearer token" } };
+    assert.equal((await authorized(req, env, fetchUser)).user.id, "other-user");
+    for (const user of [{}, { id: "other-user", is_anonymous: true }])
+      assert.equal(
+        (await authorized(req, env, async () => Response.json(user))).status,
+        403,
+      );
+    assert.equal(
+      (
+        await authorized(
+          req,
+          env,
+          async () => new Response("", { status: 401 }),
+        )
+      ).status,
+      401,
+    );
+    for (const method of ["POST", "PUT", "DELETE"])
+      assert.equal(
+        (await authorized({ ...req, method }, env, fetchUser)).status,
+        allowed ? 403 : 503,
+      );
+  }
+});

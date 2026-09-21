@@ -37,7 +37,7 @@ export async function authorized(req, env = process.env, fetchImpl = fetch) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  if (!allowed.length)
+  if (req.method !== "GET" && !allowed.length)
     return {
       status: 503,
       error: "O acesso à integração ainda não foi configurado.",
@@ -59,7 +59,11 @@ export async function authorized(req, env = process.env, fetchImpl = fetch) {
       error: "Não foi possível validar a sessão. Entre novamente.",
     };
   const user = await response.json();
-  if (user.is_anonymous || !allowed.includes(user.id))
+  if (
+    !user.id ||
+    user.is_anonymous ||
+    (req.method !== "GET" && !allowed.includes(user.id))
+  )
     return {
       status: 403,
       error: "Sua conta não tem acesso às fichas do Everest.",
