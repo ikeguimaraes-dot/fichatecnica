@@ -22,6 +22,7 @@ import { IllustratedPrint } from "./IllustratedPrint";
 type Step = { title: string; text: string; photos: string[] };
 export type Content = { steps: Step[]; finalPhoto: string | null };
 export type Preparation = {
+  canEdit?: boolean;
   content: Content;
   revision: string | null;
   updatedAt: string | null;
@@ -140,6 +141,7 @@ export function EverestPreparation({
     mounted = useRef(true);
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved.content);
   const content = editing ? draft : saved.content;
+  const allowEditing = canEdit && (adapter ? true : saved.canEdit !== false);
   const showPrintCosts = tab === "technical";
   async function load() {
     setLoading(true);
@@ -661,7 +663,7 @@ export function EverestPreparation({
                 : "Instruções desta unidade, preservadas a cada atualização do Everest."}
             </p>
           </div>
-          {canEdit && !loading && !editing && !error && (
+          {allowEditing && !loading && !editing && !error && (
             <button
               className="secondary"
               onClick={() => {

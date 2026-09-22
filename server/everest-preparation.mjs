@@ -65,9 +65,38 @@ export const photoPaths = (c) => [
     [c.finalPhoto, ...c.steps.flatMap((s) => s.photos)].filter(Boolean),
   ),
 ];
+// Chef Claudio is authorized to maintain preparations; sync permissions stay separate.
+const preparationEditors = ["c6d7b653-0707-4867-92b6-69096c5e8322"];
+export async function preparationAccess(
+  req,
+  env = process.env,
+  fetchImpl = fetch,
+) {
+  const allowed = [
+    ...preparationEditors,
+    ...(env.EVEREST_ALLOWED_USER_IDS || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+  ];
+  const access = await authorized(
+    req,
+    { ...env, EVEREST_ALLOWED_USER_IDS: allowed.join(",") },
+    fetchImpl,
+  );
+  if (!access.user)
+    return access.status === 403
+      ? {
+          ...access,
+          error:
+            "Sua conta pode consultar as fichas, mas não tem permissão para editar etapas ou enviar fotos.",
+        }
+      : access;
+  return { ...access, canEdit: allowed.includes(access.user.id) };
+}
 export function createPreparationHandler({
   getDb = () => database(),
-  authorize = (req) => authorized(req),
+  authorize = (req) => preparationAccess(req),
 } = {}) {
   return async (req, res) => {
     const send = (s, d) => res.status(s).json(d);
@@ -121,6 +150,7 @@ export function createPreparationHandler({
           : [];
         return {
           content,
+          canEdit: access.canEdit !== false,
           revision: row?.revision || null,
           updatedAt: row?.updated_at || null,
           photos: Object.fromEntries(

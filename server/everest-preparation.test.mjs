@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createPreparationHandler,
   validateContent,
+  preparationAccess,
 } from "./everest-preparation.mjs";
 const path = "1/12/11111111-1111-4111-8111-111111111111.jpg";
 const content = {
@@ -176,4 +177,50 @@ test("salva somente conteúdo validado e upload usa caminho gerado pelo servidor
   assert.equal(upload.status, 200);
   assert.match(upload.data.path, /^1\/12\/[a-f0-9-]+\.jpg$/);
   assert.equal(upload.data.token, "private-token");
+});
+
+test("Claudio consulta, salva e envia fotos; outras contas consultam sem editar", async () => {
+  const req = { headers: { authorization: "Bearer valid-token" } };
+  for (const method of ["GET", "PUT", "POST"]) {
+    const access = await preparationAccess({ ...req, method }, {}, async () =>
+      Response.json({ id: "c6d7b653-0707-4867-92b6-69096c5e8322" }),
+    );
+    assert.equal(access.canEdit, true);
+    assert.ok(access.user);
+  }
+  const reader = async () => Response.json({ id: "reader" });
+  assert.equal(
+    (await preparationAccess({ ...req, method: "GET" }, {}, reader)).canEdit,
+    false,
+  );
+  for (const method of ["PUT", "POST"])
+    assert.equal(
+      (await preparationAccess({ ...req, method }, {}, reader)).status,
+      403,
+    );
+  assert.equal(
+    (
+      await preparationAccess(
+        { ...req, method: "PUT" },
+        { EVEREST_ALLOWED_USER_IDS: "owner" },
+        async () => Response.json({ id: "owner" }),
+      )
+    ).canEdit,
+    true,
+  );
+  assert.equal(
+    (
+      await preparationAccess({ ...req, method: "GET" }, {}, async () =>
+        Response.json({
+          id: "c6d7b653-0707-4867-92b6-69096c5e8322",
+          is_anonymous: true,
+        }),
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (await preparationAccess({ method: "GET", headers: {} })).status,
+    401,
+  );
 });
