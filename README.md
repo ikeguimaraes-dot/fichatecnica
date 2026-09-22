@@ -139,3 +139,11 @@ As imagens usam o bucket privado `receita-compartilhada-fotos`: leitura para usu
 Testes de navegador usam porta própria `4279` (substituível por `LE_CHEF_TEST_PORT`) e não reutilizam servidores existentes, evitando testar acidentalmente outro projeto local.
 
 As fichas dos livros compartilhados usam o mesmo componente de preparo, fotos e prévia A4 das unidades (`EverestPreparation`), com um adaptador de persistência em `SharedSheet`. A aba **Receita** inclui ingredientes/quantidades sem preços; a prévia A4 iniciada nessa aba também omite custos. A aba **Ficha técnica** preserva os custos. Etapas legadas com `text`/`photo` são lidas automaticamente; novas edições preservam título e até três fotos por etapa em `title`/`photos`, mantendo `photo` compatível com o editor original. O salvamento do preparo preserva os ingredientes e verifica a revisão antes de atualizar.
+
+### Filtros e separação das fichas por casa
+
+A biblioteca Everest oferece **Alimentos / Bebidas** e, dentro de cada categoria, **Todos / Produção**. Produção corresponde ao nome começando com `Prod`, sem diferenciar maiúsculas e minúsculas. Classificação e exclusões ficam em `shared/everest-catalog.mjs`, com base nos nomes do cadastro (o payload de ficha técnica não traz categoria).
+
+Doses, garrafas (`GF`), soft (água, refrigerantes, energéticos e suco de uva integral pronto), cervejas/chopp, vinhos, champanhe e espumantes são ocultados. Drinks e preparos continuam disponíveis; ingredientes como vinho em reduções e bolacha champanhe não excluem uma produção culinária.
+
+Os vínculos `itemempresa` importados permitem alguns itens de outras casas. Por isso, nomes que identificam explicitamente FRNZ/FRZN/FRENZ/FRENEZE, MDNA/MADONNA, MEET ou MATCH POINT só aparecem na respectiva casa, além de exigir o vínculo original. Receitas sem identificação de casa continuam seguindo os vínculos da origem; não são redistribuídas por suposição. A regra vale na leitura de snapshots existentes, contagens, detalhes, preparos e futuras sincronizações. Os registros originais e modos de preparo são preservados.

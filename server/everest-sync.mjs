@@ -1,3 +1,4 @@
+import { visibleRecipe } from "../shared/everest-catalog.mjs";
 import { visibleEverestUnit } from "./everest-units.mjs";
 import { normalizeFicha, attachCosts } from "./everest.mjs";
 import { checked, allRows, upsertChunks } from "./everest-store.mjs";
@@ -213,7 +214,9 @@ export async function syncStep({
         .eq("job_id", id)
         .order("id"),
     );
-    const included = templates.filter((r) => members.has(r.item_id));
+    const included = templates.filter(
+      (r) => members.has(r.item_id) && visibleRecipe(r.raw.ds_item, unit.id),
+    );
     await upsertChunks(
       db,
       "receita_everest_snapshot",

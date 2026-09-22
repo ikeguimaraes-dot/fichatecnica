@@ -1,3 +1,4 @@
+import { visibleRecipe } from "../shared/everest-catalog.mjs";
 import { visibleEverestUnit } from "./everest-units.mjs";
 import { randomUUID } from "node:crypto";
 import { database, checked, authorized } from "./everest-store.mjs";
@@ -100,13 +101,13 @@ export function createPreparationHandler({
         (await checked(
           db
             .from("receita_everest_snapshot")
-            .select("id")
+            .select("id,summary")
             .eq("unit_id", Number(unit))
             .eq("snapshot_id", book.snapshot_id)
             .eq("id", Number(ficha))
             .maybeSingle(),
         ));
-      if (!member)
+      if (!member || !visibleRecipe(member.summary?.name, Number(unit)))
         return send(404, {
           error:
             "Esta ficha não está disponível nesta unidade. Reabra o livro.",

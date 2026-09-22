@@ -1,3 +1,4 @@
+import { visibleRecipe } from "../shared/everest-catalog.mjs";
 import { visibleEverestUnit } from "./everest-units.mjs";
 import { database, checked, allRows, authorized } from "./everest-store.mjs";
 import { normalizeFicha, attachCosts } from "./everest.mjs";
@@ -108,12 +109,35 @@ export function createSnapshotHandler({
           checked(
             db
               .from("receita_everest_unidade")
-              .select("id,name,synced_at,recipe_count")
+              .select("id,name,synced_at,recipe_count,snapshot_id")
               .eq("enabled", true)
               .order("name"),
           ),
           latestJob(db),
         ]);
+        const counts = new Map(
+          await Promise.all(
+            units
+              .filter((u) => visibleEverestUnit(u.id))
+              .map(async (u) => {
+                const rows = u.snapshot_id
+                  ? await allRows(() =>
+                      db
+                        .from("receita_everest_snapshot")
+                        .select("summary")
+                        .eq("unit_id", u.id)
+                        .eq("snapshot_id", u.snapshot_id)
+                        .order("id"),
+                    )
+                  : [];
+                return [
+                  u.id,
+                  rows.filter((r) => visibleRecipe(r.summary.name, u.id))
+                    .length,
+                ];
+              }),
+          ),
+        );
         return send(200, {
           records: units
             .filter((u) => visibleEverestUnit(u.id))
@@ -121,7 +145,7 @@ export function createSnapshotHandler({
               id: u.id,
               name: u.name,
               syncedAt: u.synced_at,
-              recipeCount: u.recipe_count,
+              recipeCount: counts.get(u.id) || 0,
             })),
           job,
           totalPages: 1,
@@ -157,7 +181,9 @@ export function createSnapshotHandler({
             )
           : [];
         return send(200, {
-          records: rows.map((r) => r.summary),
+          records: rows
+            .map((r) => r.summary)
+            .filter((r) => visibleRecipe(r.name, unitId)),
           snapshotId: unit.snapshot_id,
           fetchedAt: unit.synced_at || "",
           environment: unit.environment,
@@ -185,7 +211,7 @@ export function createSnapshotHandler({
           .eq("id", Number(id))
           .maybeSingle(),
       );
-      if (!row)
+      if (!row || !visibleRecipe(row.raw_ficha.ds_item, unitId))
         return send(404, {
           error: "Ficha não encontrada na cópia desta unidade.",
         });

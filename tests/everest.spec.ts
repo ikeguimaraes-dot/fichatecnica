@@ -601,3 +601,50 @@ test("sincronização concluída mostra itens sem custo como pendência, sem fal
     page.getByRole("button", { name: "Atualizar todas" }),
   ).toBeEnabled();
 });
+
+test("filtros alimentos/bebidas e produção se combinam e não exibem revenda ou outra casa", async ({
+  page,
+}) => {
+  await login(page);
+  const names = [
+    "PRATO MEET",
+    "Prod. MASSA MEET",
+    "DRINK NEGRONI",
+    "Prod. XAROPE DE MEL",
+    "DOSE LICOR 43",
+    "BURRATA GOLD FRNZ",
+  ];
+  await page.route("**/api/everest?**", (r) =>
+    r.fulfill({
+      json:
+        new URL(r.request().url()).searchParams.get("kind") === "units"
+          ? { records: units, job: null }
+          : saved(names.map((name, i) => ({ ...record, id: i + 1, name }))),
+    }),
+  );
+  await menu(page);
+  await book(page);
+  await expect(page.locator(".everest-record")).toHaveCount(2);
+  await page.getByLabel("Filtrar todos ou produção").selectOption("production");
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await expect(page.locator(".everest-record")).toContainText(
+    "Prod. MASSA MEET",
+  );
+  await page.getByLabel("Filtrar alimentos ou bebidas").selectOption("drink");
+  await expect(page.locator(".everest-record")).toHaveCount(1);
+  await expect(page.locator(".everest-record")).toContainText(
+    "Prod. XAROPE DE MEL",
+  );
+  await page.getByLabel("Filtrar todos ou produção").selectOption("all");
+  await expect(page.locator(".everest-record")).toHaveCount(2);
+  await page.getByLabel("Buscar fichas técnicas").fill("DOSE");
+  await expect(page.locator(".everest-record")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Limpar filtros", exact: true })
+    .click();
+  await expect(page.getByLabel("Filtrar alimentos ou bebidas")).toHaveValue(
+    "food",
+  );
+  await expect(page.getByLabel("Filtrar todos ou produção")).toHaveValue("all");
+  await expect(page.locator(".everest-record")).toHaveCount(2);
+});

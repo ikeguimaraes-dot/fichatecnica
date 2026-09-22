@@ -1,3 +1,8 @@
+import {
+  isProduction,
+  recipeCategory,
+  visibleRecipe,
+} from "../shared/everest-catalog.mjs";
 import { formatQuantity } from "./model";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -147,6 +152,8 @@ function UnitRecipes({
   const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [search, setSearch] = useState(""),
     [status, setStatus] = useState("all"),
+    [category, setCategory] = useState("food"),
+    [production, setProduction] = useState("all"),
     [page, setPage] = useState(1);
   const [selected, setSelected] = useState<EverestRecord | null>(null),
     [detail, setDetail] = useState<EverestDetail | null>(null),
@@ -236,6 +243,9 @@ function UnitRecipes({
   const filtered = records
     .filter(
       (r) =>
+        visibleRecipe(r.name, unit?.id || 0) &&
+        recipeCategory(r.name) === category &&
+        (production === "all" || isProduction(r.name)) &&
         (status === "all" || r.status === Number(status)) &&
         searchText(`${r.name} ${r.code} ${r.id}`).includes(searchText(search)),
     )
@@ -421,6 +431,34 @@ function UnitRecipes({
               )}
             </label>
             <label className="everest-filter">
+              Categoria
+              <select
+                aria-label="Filtrar alimentos ou bebidas"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="food">Alimentos</option>
+                <option value="drink">Bebidas</option>
+              </select>
+            </label>
+            <label className="everest-filter">
+              Tipo
+              <select
+                aria-label="Filtrar todos ou produção"
+                value={production}
+                onChange={(e) => {
+                  setProduction(e.target.value);
+                  setPage(1);
+                }}
+              >
+                <option value="all">Todos</option>
+                <option value="production">Produção</option>
+              </select>
+            </label>
+            <label className="everest-filter">
               Situação
               <select
                 aria-label="Filtrar situação das fichas"
@@ -458,28 +496,20 @@ function UnitRecipes({
           ) : !visible.length && !error && unit?.syncedAt ? (
             <div className="empty">
               <ClipboardList size={35} />
-              <h3>
-                {search || status !== "all"
-                  ? "Nenhuma ficha encontrada."
-                  : "Nenhuma ficha disponível."}
-              </h3>
-              <p>
-                {search || status !== "all"
-                  ? "Experimente outro nome, código ou situação."
-                  : "As fichas cadastradas no Everest aparecerão aqui."}
-              </p>
-              {(search || status !== "all") && (
-                <button
-                  className="secondary"
-                  onClick={() => {
-                    setSearch("");
-                    setStatus("all");
-                    setPage(1);
-                  }}
-                >
-                  Limpar filtros
-                </button>
-              )}
+              <h3>Nenhuma ficha encontrada.</h3>
+              <p>Experimente outro nome, categoria, tipo ou situação.</p>
+              <button
+                className="secondary"
+                onClick={() => {
+                  setSearch("");
+                  setStatus("all");
+                  setCategory("food");
+                  setProduction("all");
+                  setPage(1);
+                }}
+              >
+                Limpar filtros
+              </button>
             </div>
           ) : (
             <div className="everest-records">

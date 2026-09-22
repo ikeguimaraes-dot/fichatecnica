@@ -3242,6 +3242,7 @@ select:focus {
 }
 .everest-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 20px;
   justify-content: space-between;

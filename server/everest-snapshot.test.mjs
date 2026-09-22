@@ -515,3 +515,44 @@ test("leitura compartilhada exige sessão válida e preserva restrição de escr
       );
   }
 });
+
+test("filtra snapshots existentes, contagem e acesso direto por casa e categoria excluída", async () => {
+  const names = [
+    "BURRATA GOLD FRNZ",
+    "GNOCCHI SELADO FRNZ",
+    "DOSE LICOR 43",
+    "PROD. MASSA MEET",
+    "DRINK NEGRONI",
+  ];
+  const rows = names.map((name, i) => ({
+    snapshot_id: "new",
+    unit_id: 1,
+    id: i + 1,
+    summary: { id: i + 1, name },
+    raw_ficha: { id_fichatecnica: i + 1, ds_item: name },
+    raw_cost: [],
+  }));
+  const handler = createSnapshotHandler({
+    getDb: () =>
+      fakeDb({
+        receita_everest_unidade: [unit],
+        receita_everest_snapshot: rows,
+      }),
+    authorize: access,
+  });
+  assert.equal((await invoke(handler)).data.records[0].recipeCount, 2);
+  const book = await invoke(handler, { url: "/api/everest?kind=book&unit=1" });
+  assert.deepEqual(
+    book.data.records.map((r) => r.name),
+    names.slice(3),
+  );
+  for (const id of [1, 2, 3])
+    assert.equal(
+      (await invoke(handler, { url: `/api/everest?unit=1&id=${id}` })).status,
+      404,
+    );
+  assert.equal(
+    (await invoke(handler, { url: "/api/everest?unit=1&id=4" })).status,
+    200,
+  );
+});
