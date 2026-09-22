@@ -10,6 +10,8 @@ export const isProduction = (name) => normalized(name).startsWith("PROD");
 // Unlabelled recipes keep their upstream membership; never guess their owner.
 export function recipeHouse(name) {
   const value = normalized(name);
+  // Sashimeet is exclusive to Meet, as confirmed by the owner.
+  if (/\b(SASHIMEET|SASHIMMET)\b/.test(value)) return 1;
   if (/\b(FRNZ|FRZN|FRENZ|FRENEZE)\b/.test(value)) return 10;
   if (/\b(MDNA|MADONNA)\b/.test(value)) return 3;
   if (/\bMEET\b/.test(value)) return 1;

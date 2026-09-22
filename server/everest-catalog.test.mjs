@@ -61,6 +61,17 @@ test("produção usa prefixo Prod; alimentos e bebidas são filtros independente
   ])
     assert.equal(recipeCategory(name), "food", name);
 });
+test("Sashimeet pertence somente ao Meet, inclusive wagyu e variações de grafia", () => {
+  for (const name of [
+    "SASHIMEET DE WAGYU",
+    "sashimmet de wagyu",
+    "SASHIMEET",
+    "SASHIMEET DE WAGYU FRNZ",
+  ])
+    for (const unit of [1, 3, 5, 10])
+      assert.equal(visibleRecipe(name, unit), unit === 1, `${name}: ${unit}`);
+});
+
 test("rótulos de casa impedem contaminação sem remover receitas compartilhadas sem rótulo", () => {
   for (const name of [
     "BURRATA GOLD FRNZ",
