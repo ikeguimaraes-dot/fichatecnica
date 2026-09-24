@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   excludedRecipe,
+  includedRecipe,
   isProduction,
   recipeCategory,
   visibleRecipe,
@@ -88,4 +89,23 @@ test("rótulos de casa impedem contaminação sem remover receitas compartilhada
   assert.equal(visibleRecipe("PROD. LASANHA MEET", 10), false);
   for (const unit of [1, 3, 5, 10])
     assert.equal(visibleRecipe("PROD. CALDO DE LEGUMES", unit), true);
+});
+
+test("Risoto funghi MDNA entra na Madonna mesmo sem vínculo upstream e não entra em outra casa", () => {
+  const raw = {
+    id_fichatecnica: 240,
+    id_item: 1918,
+    ds_item: "RISOTO FUNGHI MDNA",
+  };
+  for (const member of [true, false]) {
+    assert.equal(includedRecipe(raw, 3, member), true);
+    for (const unit of [1, 5, 10])
+      assert.equal(includedRecipe(raw, unit, member), false);
+  }
+  assert.equal(
+    includedRecipe({ ...raw, id_fichatecnica: 241 }, 3, false),
+    false,
+  );
+  assert.equal(includedRecipe({ ...raw, id_item: 1919 }, 3, false), false);
+  assert.equal(includedRecipe({ ...raw, id_fichatecnica: 241 }, 3, true), true);
 });

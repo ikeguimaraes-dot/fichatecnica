@@ -149,3 +149,5 @@ Doses, garrafas (`GF`), soft (água, refrigerantes, energéticos e suco de uva i
 Os vínculos `itemempresa` importados permitem alguns itens de outras casas. Por isso, nomes que identificam explicitamente FRNZ/FRZN/FRENZ/FRENEZE, MDNA/MADONNA, MEET ou MATCH POINT só aparecem na respectiva casa, além de exigir o vínculo original. Receitas sem identificação de casa continuam seguindo os vínculos da origem; não são redistribuídas por suposição. A regra vale na leitura de snapshots existentes, contagens, detalhes, preparos e futuras sincronizações. Os registros originais e modos de preparo são preservados.
 
 O chef Claudio também pode editar etapas e enviar fotos dos preparos Everest, autorizado pelo UUID do Supabase em `preparationAccess`. Essa permissão é exclusiva dos preparos e não amplia acesso à sincronização. A API retorna `canEdit`, e contas com somente leitura não recebem o botão de edição.
+
+Correção confirmada pelo responsável: ficha `240`, item `1918` (**RISOTO FUNGHI MDNA**), pertence à Madonna (3). `includedRecipe` inclui essa ficha mesmo quando o vínculo `itemempresa` está ausente; os custos continuam sendo consultados especificamente na unidade 3.

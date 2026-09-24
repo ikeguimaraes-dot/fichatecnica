@@ -6,6 +6,18 @@ const normalized = (value) =>
     .toUpperCase();
 export const isProduction = (name) => normalized(name).startsWith("PROD");
 
+// Owner-confirmed correction for an incomplete Everest item/company link.
+export function includedRecipe(raw, unitId, upstreamMember) {
+  const correctedUnit =
+    Number(raw.id_fichatecnica) === 240 && Number(raw.id_item) === 1918
+      ? 3
+      : null;
+  return (
+    visibleRecipe(raw.ds_item, unitId) &&
+    (correctedUnit !== null ? Number(unitId) === correctedUnit : upstreamMember)
+  );
+}
+
 // Explicit house labels take precedence over the broad item/company links.
 // Unlabelled recipes keep their upstream membership; never guess their owner.
 export function recipeHouse(name) {
