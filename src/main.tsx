@@ -7,6 +7,7 @@ import {
   BookOpen,
   Library,
   Pencil,
+  Package,
   Check,
   ChefHat,
   Clock3,
@@ -48,6 +49,7 @@ import { supabase } from "./supabase";
 import "./style.css";
 import { Modal } from "./Modal";
 import { Editor } from "./RecipeEditor";
+const Stock = lazy(() => import("./Stock").then((m) => ({ default: m.Stock })));
 const Everest = lazy(() =>
   import("./Everest").then((m) => ({ default: m.Everest })),
 );
@@ -451,6 +453,13 @@ function App() {
             <SlidersHorizontal size={19} />
             Visão de custos
           </button>
+          <button
+            className={nav === "stock" ? "active" : ""}
+            onClick={() => navigate("stock")}
+          >
+            <Package size={19} />
+            Estoque
+          </button>
         </nav>
         <div className="sidebar-note">
           <span className="note-star">✳</span>
@@ -489,18 +498,20 @@ function App() {
           <div>
             <span className="breadcrumb">Minha cozinha</span>
             <span className="slash">/</span>
-            {nav === "technical"
-              ? "Ficha técnica"
-              : nav === "favorites"
-                ? "Favoritas"
-                : nav === "costs"
-                  ? "Visão de custos"
-                  : nav === "books"
-                    ? "Laboratorio"
-                    : currentBook?.title ||
-                      (activeBook === "unfiled"
-                        ? "Sem livro"
-                        : "Todas as receitas")}
+            {nav === "stock"
+              ? "Estoque"
+              : nav === "technical"
+                ? "Ficha técnica"
+                : nav === "favorites"
+                  ? "Favoritas"
+                  : nav === "costs"
+                    ? "Visão de custos"
+                    : nav === "books"
+                      ? "Laboratorio"
+                      : currentBook?.title ||
+                        (activeBook === "unfiled"
+                          ? "Sem livro"
+                          : "Todas as receitas")}
           </div>
           <div className="topbar-right">
             <span>
@@ -539,7 +550,22 @@ function App() {
               )}
             </div>
           )}
-          {nav === "technical" ? (
+          {nav === "stock" ? (
+            <Suspense
+              fallback={
+                <div className="empty">
+                  <LoaderCircle className="spin" />
+                  <p>Abrindo estoque…</p>
+                </div>
+              }
+            >
+              <Stock
+                key={session?.user.id || "guest"}
+                session={session}
+                onLogin={() => setAuth(true)}
+              />
+            </Suspense>
+          ) : nav === "technical" ? (
             <Suspense
               fallback={
                 <div className="empty">

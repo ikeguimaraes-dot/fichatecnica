@@ -10,6 +10,9 @@
     },
     "api/everest-worker.js": {
       "maxDuration": 120
+    },
+    "api/everest-stock.js": {
+      "maxDuration": 120
     }
   }
 }

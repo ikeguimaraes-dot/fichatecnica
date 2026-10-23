@@ -1,0 +1,127 @@
+.stock-page .page-heading p {
+  color: #77766d;
+  margin-top: 12px;
+}
+.stock-filters {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 24px 0 14px;
+}
+.stock-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stock-filters input,
+.stock-filters select {
+  border: 1px solid #deded4;
+  border-radius: 8px;
+  background: #fff;
+  padding: 12px;
+  color: #33372e;
+  min-height: 44px;
+}
+.stock-search {
+  flex: 1;
+  min-width: 220px;
+}
+.stock-note {
+  color: #77766d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.stock-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 24px 0;
+}
+.stock-summary > div {
+  background: #fff;
+  border: 1px solid #e6e5dc;
+  border-radius: 12px;
+  padding: 22px;
+}
+.stock-summary small,
+.stock-summary strong {
+  display: block;
+}
+.stock-summary small {
+  color: #77766d;
+  margin-bottom: 12px;
+}
+.stock-summary strong {
+  font-size: 26px;
+  color: #414d34;
+}
+.stock-group {
+  border: 1px solid #e6e5dc;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  margin: 24px 0;
+}
+.stock-group header {
+  padding: 20px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: center;
+  background: #f1f3eb;
+}
+.stock-group h2 {
+  margin: 0 0 5px;
+  font-size: 19px;
+}
+.stock-group small {
+  color: #77766d;
+  font-size: 11px;
+}
+.stock-table-wrap {
+  overflow-x: auto;
+}
+.stock-group table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  text-align: left;
+}
+.stock-group th,
+.stock-group td {
+  padding: 16px;
+  border-bottom: 1px solid #eeeee7;
+  min-width: 100px;
+}
+.stock-group th {
+  color: #77766d;
+  font-weight: 500;
+}
+.stock-group td small {
+  display: block;
+  margin-top: 6px;
+}
+.stock-error {
+  border: 1px solid #e5cc9c;
+  background: #fff8e9;
+  padding: 18px;
+  border-radius: 10px;
+  margin: 20px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .stock-summary {
+    grid-template-columns: 1fr;
+  }
+  .stock-filters > label {
+    flex: 1;
+    min-width: 140px;
+  }
+  .stock-summary strong {
+    font-size: 23px;
+  }
+}
