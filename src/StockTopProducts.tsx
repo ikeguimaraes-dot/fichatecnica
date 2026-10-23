@@ -14,37 +14,47 @@ const money = (n: number | null | undefined) =>
 const date = (s: string) => s.split("-").reverse().join("/");
 function PrincipalStock({ name, ledger }: { name: string; ledger: Ledger }) {
   const dish = ledger.dishes.find((d) => d.name === name);
-  const principal = dish?.principal;
-  if (!principal)
-    return <span>Principal a conferir · ficha ou custos incompletos</span>;
-  const row = ledger.rows.find(
-    (r) => r.itemId === principal.itemId && r.unit === principal.unit,
-  );
-  const incompatible = ledger.rows.some(
-    (r) => r.itemId === principal.itemId && r.unit !== principal.unit,
-  );
-  const valid =
-    !dish.reason &&
-    !principal.preparation &&
-    !incompatible &&
-    dish.requirements.some(
-      (r) => r.itemId === principal.itemId && r.unit === principal.unit,
-    );
+  const priorities = dish?.priorities || [];
+  const products = priorities.length
+    ? priorities
+    : dish?.principal
+      ? [dish.principal]
+      : [];
+  if (!products.length)
+    return <span>Ficha ou ingredientes não identificados</span>;
   return (
-    <>
-      <strong>{principal.name}</strong>
-      <br />
-      <span>
-        {valid
-          ? `${quantity(row?.balance ?? 0)} ${principal.unit}${ledger.complete ? "" : " (estimado)"}`
-          : principal.preparation
-            ? "Preparo interno · saldo a conferir"
-            : "Saldo a conferir"}
-      </span>
-      <small className="stock-principal-cost">
-        Custo na ficha: {money(principal.appliedCost)}
-      </small>
-    </>
+    <div>
+      {products.map((principal) => {
+        const row = ledger.rows.find(
+          (r) => r.itemId === principal.itemId && r.unit === principal.unit,
+        );
+        const incompatible = ledger.rows.some(
+          (r) => r.itemId === principal.itemId && r.unit !== principal.unit,
+        );
+        const valid = !principal.preparation && !incompatible;
+        return (
+          <div
+            className="stock-priority-item"
+            key={`${principal.itemId}:${principal.unit}`}
+          >
+            <strong>{principal.name}</strong>
+            <br />
+            <span>
+              {valid
+                ? `${quantity(Math.max(0, row?.balance ?? 0))} ${principal.unit}${ledger.complete && !dish?.reason ? "" : " (estimado)"}`
+                : principal.preparation
+                  ? "Preparo interno · saldo a conferir"
+                  : "Unidade de estoque a conferir"}
+            </span>
+            {principal.appliedCost != null && (
+              <small className="stock-principal-cost">
+                Custo na ficha: {money(principal.appliedCost)}
+              </small>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 export function StockTopProducts({
@@ -102,8 +112,10 @@ export function StockTopProducts({
       <p className="stock-note">
         Os rankings consideram as categorias marcadas. Outros reúne itens sem
         classificação nessas categorias. Produto principal = item de maior custo
-        aplicado na ficha; estoque em KG, L ou UN, após as vendas importadas.
-        Custos incompletos ficam a conferir.
+        aplicado na ficha; estoque em KG, L ou UN, após as vendas importadas. Na
+        Parrillada de carne, todas as carnes são prioritárias, independentemente
+        do custo. Sem saldo disponível, exibimos 0; saldos negativos permanecem
+        no controle de saldo.
       </p>
       {incomplete > 0 && (
         <p className="stock-error">
@@ -136,7 +148,7 @@ export function StockTopProducts({
                     <tr>
                       <th>Prioridade</th>
                       <th>Produto</th>
-                      <th>Produto principal · estoque</th>
+                      <th>Produtos prioritários · estoque</th>
                       <th>
                         {metric === "quantity"
                           ? "Qtd. vendida"

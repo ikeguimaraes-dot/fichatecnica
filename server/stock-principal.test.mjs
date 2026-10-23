@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { principalProduct } from "./stock-principal.mjs";
+import { principalProduct, priorityProducts } from "./stock-principal.mjs";
 import { topCategory, rankSales } from "../shared/stock-menu.mjs";
 const raw = {
   id_fichatecnica: 1,
@@ -110,4 +110,47 @@ test("top categories preserve entries, dessert wine and non-alcoholic drinks; fi
   assert.equal(ranked.length, 5);
   assert.equal(ranked[0].rank, 1);
   assert.equal(ranked[0].name, "Item 25");
+});
+
+test("Parrillada prioritizes every meat independently of missing costs and excludes sides", () => {
+  const recipe = {
+    ...raw,
+    ds_item: "Parrillada de carne",
+    itens: [
+      { ...raw.itens[0], ds_item: "Ojo de Bife" },
+      { ...raw.itens[1], ds_item: "Picanha" },
+    ],
+  };
+  const expanded = tree.map((n) => ({
+    ...n,
+    qt_utilizada: 0.1,
+    unidade: n.id_ordem === 1 ? "UN" : "KG",
+    desc_item:
+      n.id_ordem === 2
+        ? "Ojo de Bife"
+        : n.id_ordem === 3
+          ? "Picanha"
+          : "Parrillada",
+    custo_unitario: null,
+  }));
+  const result = priorityProducts(recipe, expanded);
+  assert.deepEqual(
+    result.map((p) => p.itemId),
+    [2, 3],
+  );
+  assert.ok(result.every((p) => p.appliedCost === null));
+  assert.deepEqual(
+    priorityProducts({ ...recipe, ds_item: "Outro prato" }, expanded),
+    [],
+  );
+  assert.deepEqual(
+    priorityProducts(
+      {
+        ...recipe,
+        itens: [{ id_item: 4, ds_item: "Cebola", sg_unidademedida: "KG" }],
+      },
+      [],
+    ),
+    [],
+  );
 });

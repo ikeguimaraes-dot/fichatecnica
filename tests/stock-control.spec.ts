@@ -78,6 +78,7 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
     });
   });
   let saved = false;
+  let multiplePriorities = false;
   await page.route("**/api/stock-context**", (r) => {
     if (r.request().method() === "POST") {
       expect(r.request().postDataJSON()).toEqual({
@@ -125,6 +126,31 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
               appliedCost: 20,
               preparation: false,
             },
+            priorities: multiplePriorities
+              ? [
+                  {
+                    itemId: 300,
+                    name: "Ojo de Bife",
+                    unit: "KG",
+                    appliedCost: null,
+                    preparation: false,
+                  },
+                  {
+                    itemId: 301,
+                    name: "Picanha",
+                    unit: "KG",
+                    appliedCost: null,
+                    preparation: false,
+                  },
+                  {
+                    itemId: 302,
+                    name: "Chorizo",
+                    unit: "KG",
+                    appliedCost: null,
+                    preparation: false,
+                  },
+                ]
+              : [],
             sold: saved ? 6 : 4,
             outputPerSale: 1,
             outputUnit: "UNID",
@@ -213,8 +239,20 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
     "Prato teste",
   );
   await expect(valueRanking.locator("tbody tr").first()).toContainText(
-    "-2 KG (estimado)",
+    "0 KG (estimado)",
   );
+  multiplePriorities = true;
+  await page.getByLabel("Restaurante do estoque").selectOption("1");
+  const priorities = quantityRanking.locator("tbody tr").first();
+  await expect(priorities).toContainText("Ojo de Bife");
+  await expect(priorities).toContainText("1 KG (estimado)");
+  await expect(priorities).toContainText("Picanha");
+  await expect(priorities).toContainText("Chorizo");
+  await expect(
+    priorities.getByText("0 KG (estimado)", { exact: true }),
+  ).toHaveCount(2);
+  await expect(priorities).not.toContainText("a conferir");
+  multiplePriorities = false;
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(valueRanking).toBeVisible();
   await page.screenshot({
