@@ -3,6 +3,7 @@ import { LoaderCircle } from "lucide-react";
 import { request } from "./everest-api";
 import { supabase } from "./supabase";
 import { StockMenu } from "./StockMenu";
+import { StockTopProducts } from "./StockTopProducts";
 import {
   computeLedger,
   STOCK_START,
@@ -216,6 +217,7 @@ export function StockControl({
               >
                 {[
                   ["menu", "Cardápio por restaurante"],
+                  ["top", "Top 20 produtos"],
                   ["dishes", "Disponibilidade dos pratos"],
                   ["ingredients", "Saldo por categoria"],
                   ["sales", "Vendas e vínculos"],
@@ -230,48 +232,52 @@ export function StockControl({
                   </button>
                 ))}
               </div>
-              <div className="stock-filters">
-                <label className="stock-search">
-                  Buscar no controle
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Prato, insumo ou produto vendido"
-                  />
-                </label>
-                {tab === "ingredients" && (
-                  <label>
-                    Categoria do saldo
-                    <select
-                      aria-label="Categoria do saldo"
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                    >
-                      <option value="">Todas</option>
-                      {[...new Set(ledger.rows.map((r) => r.category))]
-                        .sort()
-                        .map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                    </select>
-                  </label>
-                )}
-                {tab === "dishes" && (
-                  <label>
-                    <span>Somente sem saldo</span>
+              {tab !== "top" && (
+                <div className="stock-filters">
+                  <label className="stock-search">
+                    Buscar no controle
                     <input
-                      type="checkbox"
-                      checked={onlyMissing}
-                      onChange={(e) => setOnlyMissing(e.target.checked)}
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Prato, insumo ou produto vendido"
                     />
                   </label>
-                )}
-              </div>
+                  {tab === "ingredients" && (
+                    <label>
+                      Categoria do saldo
+                      <select
+                        aria-label="Categoria do saldo"
+                        value={category}
+                        onChange={(e) => setCategory(e.target.value)}
+                      >
+                        <option value="">Todas</option>
+                        {[...new Set(ledger.rows.map((r) => r.category))]
+                          .sort()
+                          .map((c) => (
+                            <option key={c}>{c}</option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
+                  {tab === "dishes" && (
+                    <label>
+                      <span>Somente sem saldo</span>
+                      <input
+                        type="checkbox"
+                        checked={onlyMissing}
+                        onChange={(e) => setOnlyMissing(e.target.checked)}
+                      />
+                    </label>
+                  )}
+                </div>
+              )}
+              {tab === "top" && <StockTopProducts context={context} />}
               {tab === "menu" && (
                 <StockMenu
                   key={`${context.unit.id}:${context.syncedAt}`}
                   context={context}
                   ledger={ledger}
+                  catalog={catalog}
                   search={search}
                 />
               )}

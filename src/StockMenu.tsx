@@ -2,7 +2,12 @@ import { useEffect, useId, useState } from "react";
 import { ChevronDown, LoaderCircle } from "lucide-react";
 import { request } from "./everest-api";
 import type { EverestDetail } from "./everest-types";
-import type { Ledger, StockContext } from "../shared/stock-ledger.mjs";
+import { MENU_CATEGORIES, menuCategory } from "../shared/stock-menu.mjs";
+import type {
+  StockCatalog,
+  Ledger,
+  StockContext,
+} from "../shared/stock-ledger.mjs";
 const quantity = (value: number | null) =>
   value === null
     ? "Não informado"
@@ -191,15 +196,30 @@ export function StockMenu({
   context,
   ledger,
   search,
+  catalog,
 }: {
   context: StockContext;
   ledger: Ledger;
   search: string;
+  catalog: StockCatalog[];
 }) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [category, setCategory] = useState("");
+  const classify = (name: string, recipeName = "", itemId?: number) =>
+    menuCategory({
+      name,
+      recipeName,
+      groups: context.sales.find((s) => s.name === name)?.groups,
+      catalogCategory: catalog.find((c) => c.id === itemId)?.category,
+    });
   const prefix = useId();
   const query = search.trim().toLocaleLowerCase("pt-BR");
   const dishes = ledger.dishes
+    .filter(
+      (dish) =>
+        !category ||
+        classify(dish.name, dish.recipeName, dish.itemId) === category,
+    )
     .filter((dish) =>
       `${dish.name} ${dish.recipeName}`
         .toLocaleLowerCase("pt-BR")
@@ -209,7 +229,8 @@ export function StockMenu({
   const pending = context.pending.filter(
     (item) =>
       !ledger.dishes.some((dish) => dish.name === item.name) &&
-      item.name.toLocaleLowerCase("pt-BR").includes(query),
+      item.name.toLocaleLowerCase("pt-BR").includes(query) &&
+      (!category || classify(item.name) === category),
   );
   return (
     <section
@@ -220,6 +241,32 @@ export function StockMenu({
       <p className="stock-note">
         Pratos das fichas da unidade e produtos vendidos no Lorean. Abra a seta
         para comparar a ficha técnica com os ingredientes em estoque.
+      </p>
+      <div className="stock-filters">
+        <label>
+          Categoria do cardápio
+          <select
+            aria-label="Categoria do cardápio"
+            value={category}
+            onChange={(event) => {
+              setCategory(event.target.value);
+              setExpanded(null);
+            }}
+          >
+            <option value="">Todas as categorias</option>
+            {MENU_CATEGORIES.map((name) => (
+              <option key={name}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <span className="stock-note">
+          {dishes.length + pending.length} itens · Quantidade disponível em
+          porções
+        </span>
+      </div>
+      <p className="stock-note">
+        Categorias organizadas pelo grupo cadastrado e pelo nome do produto.
+        Itens sem classificação ficam em Outros.
       </p>
       {!dishes.length && !pending.length && (
         <p className="empty">
@@ -247,7 +294,10 @@ export function StockMenu({
               />
               <span className="stock-menu-name">
                 <strong>{dish.name}</strong>
-                <small>{quantity(dish.sold)} vendidos desde o dia 20</small>
+                <small>
+                  {classify(dish.name, dish.recipeName, dish.itemId)} ·{" "}
+                  {quantity(dish.sold)} vendidos desde o dia 20
+                </small>
               </span>
               <span
                 className={`stock-menu-portions ${dish.portions === 0 ? "stock-negative" : ""}`}
@@ -272,7 +322,7 @@ export function StockMenu({
           <summary>
             <ChevronDown size={20} aria-hidden="true" />
             <strong>{item.name}</strong>
-            <span>Ficha não vinculada</span>
+            <span>Estoque a conferir · Ficha não vinculada</span>
           </summary>
           <div className="stock-menu-pending-body">
             <p>{item.reason}</p>

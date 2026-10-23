@@ -128,7 +128,20 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
           },
         ],
         options: [{ id: 1, name: "Prato teste", unit: "UNID", yield: 1 }],
-        sales: [{ name: "Outro prato", quantity: 2 }],
+        sales: [
+          {
+            name: "Outro prato",
+            quantity: 2,
+            netValue: unit === 1 ? 200 : 5,
+            groups: ["Massas Frescas"],
+          },
+          {
+            name: "Prato teste",
+            quantity: 4,
+            netValue: 100,
+            groups: ["Proteinas"],
+          },
+        ],
       },
     });
   });
@@ -138,6 +151,46 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
   await expect(
     control.getByText("2 (estimadas)", { exact: true }),
   ).toBeVisible();
+  await control.getByRole("tab", { name: "Cardápio por restaurante" }).click();
+  await page.getByLabel("Categoria do cardápio").selectOption("Massas");
+  await expect(
+    control.getByRole("button", { name: "Abrir ficha de Prato teste" }),
+  ).toHaveCount(0);
+  await expect(control.getByText("Outro prato", { exact: true })).toBeVisible();
+  await page.getByLabel("Categoria do cardápio").selectOption("Proteínas");
+  await expect(control.getByText("Outro prato", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    control.getByText("2 porções estimadas", { exact: true }),
+  ).toBeVisible();
+  await control.getByRole("tab", { name: "Top 20 produtos" }).click();
+  const quantityRanking = control.getByRole("region", {
+    name: "Ranking por quantidade",
+  });
+  const valueRanking = control.getByRole("region", {
+    name: "Ranking por valor",
+  });
+  await expect(quantityRanking.locator("tbody tr").first()).toContainText(
+    "Prato teste",
+  );
+  await expect(valueRanking.locator("tbody tr").first()).toContainText(
+    "Outro prato",
+  );
+  await expect(
+    valueRanking.locator("tbody tr").first().locator("td").first(),
+  ).toHaveText("1");
+  await page.getByLabel("Restaurante do estoque").selectOption("3");
+  await expect(valueRanking.locator("tbody tr").first()).toContainText(
+    "Prato teste",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(valueRanking).toBeVisible();
+  await page.screenshot({
+    path: "/tmp/stock-ranking-mobile.png",
+    fullPage: true,
+  });
+  await page.getByLabel("Restaurante do estoque").selectOption("1");
   await control.getByRole("tab", { name: "Cardápio por restaurante" }).click();
   const toggle = control.getByRole("button", {
     name: "Abrir ficha de Prato teste",
@@ -188,7 +241,11 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
   await expect(row).toContainText("-2 KG");
   await page.getByLabel("Restaurante do estoque").selectOption("1");
   await control.getByRole("tab", { name: "Vendas e vínculos" }).click();
-  await control.getByRole("button", { name: "Conferir vínculo" }).click();
+  await control
+    .getByRole("row")
+    .filter({ hasText: "Outro prato" })
+    .getByRole("button", { name: "Conferir vínculo" })
+    .click();
   await page.getByLabel("Ficha para consumo").selectOption("1");
   await page.getByLabel("Quantidade por venda").fill("1");
   await page

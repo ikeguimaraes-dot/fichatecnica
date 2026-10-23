@@ -59,12 +59,20 @@ export function assembleContext({
         name: sale.produto,
         key,
         quantity: 0,
+        netCents: 0,
+        valueInvalid: false,
+        groups: new Set(),
         suspect: false,
         invalid: false,
       };
     const quantity = finite(sale.qtd);
     if (quantity === null || quantity < 0) group.invalid = true;
     else group.quantity += quantity;
+    if (sale.grupo) group.groups.add(String(sale.grupo).trim());
+    const gross = finite(sale.bruto),
+      discount = finite(sale.desconto);
+    if (gross === null || discount === null) group.valueInvalid = true;
+    else group.netCents += Math.round((gross - discount) * 100);
     group.suspect ||= Boolean(day.qualidade_suspeito);
     saleGroups.set(key, group);
   }
@@ -116,6 +124,7 @@ export function assembleContext({
         recipeId: snapshot.id,
         name: group.name,
         recipeName: raw.ds_item,
+        itemId: Number(raw.id_item),
         sold: group.quantity,
         outputPerSale: output,
         outputUnit: raw.sg_unidademedida,
@@ -140,6 +149,7 @@ export function assembleContext({
       recipeId: snapshot.id,
       name: raw.ds_item,
       recipeName: raw.ds_item,
+      itemId: Number(raw.id_item),
       sold: 0,
       outputPerSale: output,
       outputUnit: raw.sg_unidademedida,
@@ -166,6 +176,10 @@ export function assembleContext({
     sales: [...saleGroups.values()].map((s) => ({
       name: s.name,
       quantity: s.quantity,
+      quantityValid: !s.invalid,
+      netValue: s.valueInvalid ? null : s.netCents / 100,
+      suspect: s.suspect,
+      groups: [...s.groups].sort(),
     })),
   };
 }
@@ -209,7 +223,7 @@ export async function readContext(db, unitId, end) {
       ...(await allRows(() =>
         db
           .from("lorean_produtos_dia")
-          .select("id,workday_id_fk,produto,qtd")
+          .select("id,workday_id_fk,produto,grupo,qtd,bruto,desconto")
           .in(
             "workday_id_fk",
             workdays.slice(i, i + 100).map((w) => w.id),

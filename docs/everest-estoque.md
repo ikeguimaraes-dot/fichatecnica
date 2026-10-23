@@ -32,3 +32,9 @@ A seção Controle de estoque agora complementa a consulta de NFs. O ponto inici
 Migração `20261023142921_add_stock_sales_links.sql`: tabela com RLS habilitado, sem acesso direto de anon/authenticated; acesso pelo servidor e escrita limitada à lista `EVEREST_ALLOWED_USER_IDS`. Aplicada no projeto conectado por SQL em 23/10/2026 e verificada por consulta e privilégios. Não contém vínculos inventados ou pré-preenchidos.
 
 Validação real: banco tinha produtos dos dias 20–22 para as quatro casas e nenhum movimento em 23/10 no momento da verificação. O cálculo foi executado localmente sobre 124 registros reais de produtos e 358 fichas da Madonna, encontrando 63 produtos com vínculo/conversão pendentes. Isso não constitui confirmação do saldo físico; as pendências precisam de conferência operacional.
+
+## Categorias do cardápio e Top 20
+
+O cardápio permite filtrar Proteínas, Alcoólicos, Embutidos, Pães, Massas e outras categorias, mantendo a disponibilidade em porções e a ficha expansível. A classificação usa primeiro o grupo do produto vendido no Lorean, depois o grupo do item principal no Everest e, como alternativa, o nome do produto/ficha. Não classifica o prato pela categoria dos ingredientes. Produtos sem classificação ficam em Outros; a classificação por nome é uma aproximação.
+
+Top 20 produtos apresenta dois rankings independentes para a unidade e período selecionados, desde 20/10/2026: quantidade e valor vendido, ambos decrescentes e numerados desde 1. O valor soma `bruto - desconto`; `total` do Lorean inclui gorjeta e não é usado. Produtos sem ficha também entram nos rankings. Nomes são agrupados pela mesma normalização do controle de consumo; empates são resolvidos pelo nome. Dados suspeitos ficam fora dos dois rankings, quantidades inválidas ficam fora do ranking por quantidade e valores financeiros ausentes ficam fora do ranking por valor, com aviso na tela.

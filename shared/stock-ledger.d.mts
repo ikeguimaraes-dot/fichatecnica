@@ -10,6 +10,7 @@ export type Dish = {
   recipeId: number;
   name: string;
   recipeName: string;
+  itemId?: number;
   sold: number;
   outputPerSale: number | null;
   outputUnit: string;
@@ -40,7 +41,14 @@ export type StockContext = {
   }[];
   dishes: Dish[];
   options: { id: number; name: string; unit: string; yield: number }[];
-  sales: { name: string; quantity: number }[];
+  sales: {
+    name: string;
+    quantity: number;
+    quantityValid?: boolean;
+    netValue?: number | null;
+    suspect?: boolean;
+    groups?: string[];
+  }[];
 };
 export type StockCatalog = {
   id: number;
