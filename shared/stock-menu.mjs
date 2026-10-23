@@ -118,3 +118,31 @@ export function rankSales(sales, metric) {
     .slice(0, 20)
     .map((sale, index) => ({ ...sale, rank: index + 1 }));
 }
+
+export const TOP_CATEGORIES = [
+  "Pratos principais",
+  "Entradas",
+  "Bebidas alcoólicas",
+  "Não alcoólicos",
+  "Sobremesas",
+  "Outros",
+];
+export function topCategory(item) {
+  const category = menuCategory(item);
+  if (category === "Alcoólicos") return "Bebidas alcoólicas";
+  if (category === "Sem álcool") return "Não alcoólicos";
+  const groups = (item.groups || []).map(clean);
+  for (const group of groups) {
+    if (/ENTRADA|ANTIPAST|PARA COMPARTILHAR/.test(group)) return "Entradas";
+    if (/SOBREMESA|DOLCI/.test(group)) return "Sobremesas";
+    if (
+      /PRINCIPAL|PRATOS|PROTEIN|DA BRASA|WAGYU|PEIXE|FRUTO.? ?MAR|MASSA|RISOTO|EXECUTIVO/.test(
+        group,
+      )
+    )
+      return "Pratos principais";
+  }
+  if (category === "Sobremesas") return "Sobremesas";
+  if (["Proteínas", "Massas"].includes(category)) return "Pratos principais";
+  return "Outros";
+}

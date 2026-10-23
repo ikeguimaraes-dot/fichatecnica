@@ -429,3 +429,28 @@
     grid-template-columns: 1fr;
   }
 }
+.stock-top-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 14px;
+  margin: 16px 0;
+}
+.stock-top-filters label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.stock-top-filters input {
+  width: 18px;
+  height: 18px;
+}
+.stock-principal-cost {
+  display: block;
+  color: #666;
+  margin-top: 5px;
+  font-size: 12px;
+}

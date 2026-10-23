@@ -1,3 +1,4 @@
+import { principalProduct } from "./stock-principal.mjs";
 import { authorized, database, checked, allRows } from "./everest-store.mjs";
 import { validDate } from "./everest-stock.mjs";
 import { visibleEverestUnit } from "./everest-units.mjs";
@@ -125,6 +126,7 @@ export function assembleContext({
         name: group.name,
         recipeName: raw.ds_item,
         itemId: Number(raw.id_item),
+        principal: principalProduct(raw, snapshot.raw_cost),
         sold: group.quantity,
         outputPerSale: output,
         outputUnit: raw.sg_unidademedida,
@@ -150,6 +152,7 @@ export function assembleContext({
       name: raw.ds_item,
       recipeName: raw.ds_item,
       itemId: Number(raw.id_item),
+      principal: principalProduct(raw, snapshot.raw_cost),
       sold: 0,
       outputPerSale: output,
       outputUnit: raw.sg_unidademedida,

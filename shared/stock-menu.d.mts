@@ -17,3 +17,11 @@ export function rankSales(
   sales: RankedSale[],
   metric: "quantity" | "value",
 ): (RankedSale & { rank: number })[];
+
+export const TOP_CATEGORIES: string[];
+export function topCategory(item: {
+  name: string;
+  recipeName?: string;
+  groups?: string[];
+  catalogCategory?: string;
+}): string;

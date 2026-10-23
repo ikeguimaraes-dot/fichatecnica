@@ -118,6 +118,13 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
             recipeId: 1,
             name: "Prato teste",
             recipeName: "Prato teste",
+            principal: {
+              itemId: 300,
+              name: "Farinha",
+              unit: "KG",
+              appliedCost: 20,
+              preparation: false,
+            },
             sold: saved ? 6 : 4,
             outputPerSale: 1,
             outputUnit: "UNID",
@@ -180,9 +187,33 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
   await expect(
     valueRanking.locator("tbody tr").first().locator("td").first(),
   ).toHaveText("1");
+  await expect(quantityRanking.locator("tbody tr").first()).toContainText(
+    "Farinha",
+  );
+  await expect(quantityRanking.locator("tbody tr").first()).toContainText(
+    "1 KG (estimado)",
+  );
+  await control.getByRole("button", { name: "Limpar seleção" }).click();
+  await expect(quantityRanking.locator("tbody tr")).toHaveCount(0);
+  await control
+    .getByRole("checkbox", { name: "Entradas", exact: true })
+    .check();
+  await expect(quantityRanking.locator("tbody tr")).toHaveCount(0);
+  await control
+    .getByRole("checkbox", { name: "Pratos principais", exact: true })
+    .check();
+  await expect(quantityRanking.locator("tbody tr")).toHaveCount(2);
+  await control
+    .getByRole("checkbox", { name: "Pratos principais", exact: true })
+    .uncheck();
+  await expect(valueRanking.locator("tbody tr")).toHaveCount(0);
+  await control.getByRole("button", { name: "Selecionar todas" }).click();
   await page.getByLabel("Restaurante do estoque").selectOption("3");
   await expect(valueRanking.locator("tbody tr").first()).toContainText(
     "Prato teste",
+  );
+  await expect(valueRanking.locator("tbody tr").first()).toContainText(
+    "-2 KG (estimado)",
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(valueRanking).toBeVisible();

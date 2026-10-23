@@ -271,7 +271,9 @@ export function StockControl({
                   )}
                 </div>
               )}
-              {tab === "top" && <StockTopProducts context={context} />}
+              {tab === "top" && (
+                <StockTopProducts context={context} ledger={ledger} />
+              )}
               {tab === "menu" && (
                 <StockMenu
                   key={`${context.unit.id}:${context.syncedAt}`}

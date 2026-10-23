@@ -11,6 +11,13 @@ export type Dish = {
   name: string;
   recipeName: string;
   itemId?: number;
+  principal?: {
+    itemId: number;
+    name: string;
+    unit: string;
+    appliedCost: number;
+    preparation: boolean;
+  } | null;
   sold: number;
   outputPerSale: number | null;
   outputUnit: string;
