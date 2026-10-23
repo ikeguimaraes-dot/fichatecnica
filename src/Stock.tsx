@@ -3,6 +3,8 @@ import type { Session } from "@supabase/supabase-js";
 import { LoaderCircle, Package, RefreshCw } from "lucide-react";
 import { request } from "./everest-api";
 import "./stock.css";
+import { StockControl } from "./StockControl";
+import type { StockCatalog } from "../shared/stock-ledger.mjs";
 
 type Invoice = {
   id: number;
@@ -26,7 +28,7 @@ type Item = {
   unitPrice: number | null;
   total: number | null;
 };
-type CatalogItem = { id: number; category: string };
+type CatalogItem = StockCatalog;
 type Entry = Item & { invoice: Invoice; category: string };
 const today = () =>
   new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Sao_Paulo" }).format(
@@ -57,6 +59,7 @@ export function Stock({
   const [data, setData] = useState<{
     invoices: Invoice[];
     entries: Entry[];
+    catalog: CatalogItem[];
     fetchedAt: string;
   } | null>(null);
   const [loading, setLoading] = useState(false),
@@ -151,6 +154,7 @@ export function Stock({
           setData({
             invoices,
             entries,
+            catalog,
             fetchedAt: new Date().toLocaleString("pt-BR"),
           });
       } catch (err) {
@@ -204,9 +208,7 @@ export function Stock({
             <span /> EVEREST · ENTRADA DE MERCADORIAS
           </div>
           <h1>Estoque</h1>
-          <p>
-            Notas fiscais de entrada organizadas pela categoria dos produtos.
-          </p>
+          <p>Entradas, consumo e disponibilidade dos pratos por restaurante.</p>
         </div>
         <Package size={36} />
       </div>
@@ -254,8 +256,8 @@ export function Stock({
           </form>
           <p className="stock-note">
             Período pela data de lançamento no Everest, incluindo o primeiro e o
-            último dia. Esta consulta mostra entradas; não representa o saldo
-            atual de estoque.
+            último dia. O controle abaixo estima o saldo com as vendas
+            importadas do Lorean.
           </p>
           {loading && (
             <div className="empty" role="status">
@@ -278,6 +280,13 @@ export function Stock({
           )}
           {data && (
             <>
+              <StockControl
+                entries={data.entries}
+                catalog={data.catalog}
+                start={period.start}
+                end={period.end}
+                missingInvoices={missingItems}
+              />
               <p className="stock-note">
                 Consulta de {period.start.split("-").reverse().join("/")} a{" "}
                 {period.end.split("-").reverse().join("/")} · Atualizada em{" "}

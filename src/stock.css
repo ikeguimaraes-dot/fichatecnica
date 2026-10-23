@@ -125,3 +125,112 @@
     font-size: 23px;
   }
 }
+.stock-control {
+  margin: 28px 0 40px;
+  padding: 24px;
+  border: 1px solid #d8decf;
+  border-radius: 14px;
+  background: #fafbf7;
+}
+.stock-control header h2 {
+  margin: 0 0 12px;
+  font-size: 26px;
+}
+.stock-control header p {
+  font-size: 14px;
+  color: #646c5b;
+}
+.stock-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid #deded4;
+  padding-bottom: 12px;
+}
+.stock-tabs button {
+  padding: 10px 16px;
+  border-radius: 8px;
+}
+.stock-tabs [aria-selected="true"] {
+  background: #414d34;
+  color: #fff;
+}
+.stock-ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+  background: white;
+}
+.stock-ledger-table th,
+.stock-ledger-table td {
+  padding: 16px;
+  border-bottom: 1px solid #e6e5dc;
+  min-width: 110px;
+}
+.stock-ledger-table td small,
+.stock-ledger-table td strong {
+  display: block;
+}
+.stock-ledger-table td small {
+  margin-bottom: 6px;
+  color: #77766d;
+}
+.stock-negative {
+  color: #a13224;
+  font-weight: 700;
+}
+.stock-daily {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.stock-daily > div {
+  background: #eff2e8;
+  padding: 14px;
+  border-radius: 8px;
+}
+.stock-daily span {
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.stock-link-form {
+  margin-top: 24px;
+  padding: 22px;
+  background: #fff;
+  border: 1px solid #d8decf;
+  border-radius: 10px;
+}
+.stock-link-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+.stock-link-form input,
+.stock-link-form select {
+  padding: 12px;
+  max-width: 100%;
+  border: 1px solid #deded4;
+  border-radius: 6px;
+}
+.stock-link-form p {
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .stock-control {
+    padding: 14px;
+  }
+  .stock-tabs button {
+    flex: 1;
+  }
+}
+.stock-control input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  accent-color: #414d34;
+}

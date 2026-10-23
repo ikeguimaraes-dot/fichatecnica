@@ -31,6 +31,14 @@ export function normalizeStock(kind, row) {
     if (!id(row.id_item)) throw Error("invalid_response");
     return {
       id: Number(row.id_item),
+      packaging: Array.isArray(row.embalagens)
+        ? row.embalagens.map((p) => ({
+            id: num(p.id_embalagem),
+            unit: str(p.sg_unidademedida),
+            factor: num(p.qt_item),
+            stock: p.fl_padrao_estoque === "S",
+          }))
+        : [],
       category:
         str(row.ds_grupo) ||
         (row.cd_grupo ? `Grupo ${row.cd_grupo}` : "Sem categoria"),
@@ -46,6 +54,8 @@ export function normalizeStock(kind, row) {
     name: str(row.ds_item),
     unit: str(row.sg_unidademedida),
     quantity: num(row.qt_embalagem),
+    convertedQuantity: num(row.qt_convertido),
+    packagingId: num(row.id_embalagem),
     unitPrice: num(row.vl_unitario),
     total: num(row.vl_total),
   };
