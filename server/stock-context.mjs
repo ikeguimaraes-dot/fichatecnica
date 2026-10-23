@@ -152,6 +152,7 @@ export function assembleContext({
     end,
     lastDate,
     syncedAt: unit.synced_at,
+    snapshotId: unit.snapshot_id,
     daily,
     issues,
     pending,
@@ -332,19 +333,17 @@ export function createStockContextHandler({
             error: "Ficha não pertence à unidade selecionada.",
           });
         await checked(
-          db
-            .from("receita_estoque_vinculo")
-            .upsert(
-              {
-                unit_id: unitId,
-                sale_name: name,
-                recipe_id: recipeId,
-                output_per_sale: quantity,
-                updated_by: access.user.id,
-                updated_at: new Date().toISOString(),
-              },
-              { onConflict: "unit_id,sale_name" },
-            ),
+          db.from("receita_estoque_vinculo").upsert(
+            {
+              unit_id: unitId,
+              sale_name: name,
+              recipe_id: recipeId,
+              output_per_sale: quantity,
+              updated_by: access.user.id,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "unit_id,sale_name" },
+          ),
         );
         return send(200, { saved: true });
       }

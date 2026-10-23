@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { request } from "./everest-api";
 import { supabase } from "./supabase";
+import { StockMenu } from "./StockMenu";
 import {
   computeLedger,
   STOCK_START,
@@ -214,6 +215,7 @@ export function StockControl({
                 aria-label="Controle de estoque"
               >
                 {[
+                  ["menu", "Cardápio por restaurante"],
                   ["dishes", "Disponibilidade dos pratos"],
                   ["ingredients", "Saldo por categoria"],
                   ["sales", "Vendas e vínculos"],
@@ -265,6 +267,14 @@ export function StockControl({
                   </label>
                 )}
               </div>
+              {tab === "menu" && (
+                <StockMenu
+                  key={`${context.unit.id}:${context.syncedAt}`}
+                  context={context}
+                  ledger={ledger}
+                  search={search}
+                />
+              )}
               {tab === "dishes" && (
                 <>
                   <p className="stock-note">

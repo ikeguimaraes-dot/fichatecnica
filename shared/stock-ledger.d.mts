@@ -22,6 +22,7 @@ export type StockContext = {
   end: string;
   lastDate: string | null;
   syncedAt: string | null;
+  snapshotId?: string | null;
   canEdit: boolean;
   daily: {
     date: string;

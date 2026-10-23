@@ -55,6 +55,28 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
             ];
     return r.fulfill({ json: { records, totalPages: 1, page: 1 } });
   });
+  await page.route("**/api/everest?**", (r) => {
+    const params = new URL(r.request().url()).searchParams;
+    expect(params.get("unit")).toBe("1");
+    expect(params.get("id")).toBe("1");
+    expect(params.get("snapshot")).toBe("snapshot-test");
+    return r.fulfill({
+      json: {
+        record: {
+          id: 1,
+          name: "Ficha do prato teste",
+          quantity: 10,
+          unit: "UNID",
+          version: 2,
+          instructions: "Misture e asse.",
+          notes: "Servir quente.",
+          components: [
+            { itemId: 300, name: "Farinha na ficha", quantity: 5, unit: "KG" },
+          ],
+        },
+      },
+    });
+  });
   let saved = false;
   await page.route("**/api/stock-context**", (r) => {
     if (r.request().method() === "POST") {
@@ -75,6 +97,7 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
         end: "2026-10-23",
         lastDate: "2026-10-22",
         syncedAt: null,
+        snapshotId: "snapshot-test",
         canEdit: true,
         daily: [{ date: "2026-10-20", workdays: 1, products: 2, quantity: 6 }],
         issues: ["2026-10-23: sem movimento importado"],
@@ -114,6 +137,47 @@ test("controle calcula consumo, limita pratos, separa unidades e salva vínculo"
   const control = page.locator(".stock-control");
   await expect(
     control.getByText("2 (estimadas)", { exact: true }),
+  ).toBeVisible();
+  await control.getByRole("tab", { name: "Cardápio por restaurante" }).click();
+  const toggle = control.getByRole("button", {
+    name: "Abrir ficha de Prato teste",
+  });
+  await toggle.click();
+  await expect(
+    control.getByRole("button", { name: "Fechar ficha de Prato teste" }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    control.getByText("Ficha do prato teste", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    control.getByText("Misture e asse.", { exact: true }),
+  ).toBeVisible();
+  const ingredient = control
+    .locator(".stock-menu-balance")
+    .getByRole("row")
+    .filter({ hasText: "Farinha" });
+  await expect(ingredient).toContainText("0,5 KG");
+  await expect(ingredient).toContainText("1 KG");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    control.getByText("Ficha do prato teste", { exact: true }),
+  ).toBeVisible();
+  await page.screenshot({ path: "/tmp/stock-menu-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.screenshot({
+    path: "/tmp/stock-menu-desktop.png",
+    fullPage: true,
+  });
+  await page.getByLabel("Restaurante do estoque").selectOption("3");
+  await expect(
+    control.getByRole("heading", { name: "Cardápio · Madonna" }),
+  ).toBeVisible();
+  await expect(
+    control.getByText("Ficha do prato teste", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByLabel("Restaurante do estoque").selectOption("1");
+  await expect(
+    control.getByRole("heading", { name: "Cardápio · Meet" }),
   ).toBeVisible();
   await control.getByRole("tab", { name: "Saldo por categoria" }).click();
   const row = control.getByRole("row").filter({ hasText: "Farinha" });
